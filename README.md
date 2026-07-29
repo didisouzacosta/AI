@@ -51,12 +51,79 @@ MyApp/
 
 ### 3. Declare as particularidades do projeto
 
-O contrato exige que cada projeto informe seus deployment targets, comandos de build e detalhes que não podem ser generalizados.
+O contrato geral não conhece o nome do app, seus targets, schemes, comandos ou regras de produto. Registre essas informações em um documento próprio e peça explicitamente ao `AGENTS.md` raiz para lê-lo.
 
-Essas regras particulares podem ser adicionadas:
+Crie `docs/PROJECT_RULES.md`:
 
-- em um `AGENTS.md` mais específico dentro de uma pasta; ou
-- em outro documento explicitamente referenciado pelo `AGENTS.md` raiz.
+```markdown
+# Project-specific rules
+
+These instructions apply to the entire repository and extend the root
+`AGENTS.md`.
+
+## Platform
+
+- Product: iOS application.
+- Deployment target: iOS 26.
+- Swift language mode: Swift 6.
+- Supported orientations: portrait and landscape.
+
+## Xcode
+
+- Project: `<ProjectName>.xcodeproj`.
+- Main scheme: `<ProjectName>`.
+- Unit test scheme: `<ProjectName>Tests`.
+- Default destination: an available iOS Simulator.
+
+## Validation commands
+
+- Build:
+  `xcodebuild -project <ProjectName>.xcodeproj -scheme <ProjectName> build`
+- Unit tests:
+  `xcodebuild -project <ProjectName>.xcodeproj -scheme <ProjectName>Tests test`
+- Read the generated `.xcresult` before declaring the test run Green.
+
+## Product architecture
+
+- Initial route: SignIn when no authenticated session exists; Home otherwise.
+- Authentication state is owned by `SessionService`.
+- User data is accessed through `UserRepository`.
+- Persistent user models use the schema and migration plan in
+  `Sources/Core/Persistence/`.
+
+## Project constraints
+
+- The app must continue to work offline for previously loaded content.
+- Camera behavior is available only on physical devices.
+- Never place credentials, tokens, certificates, or private keys in this file.
+```
+
+Substitua os valores entre `<...>` e remova seções que não se aplicam. Prefira regras estáveis e verificáveis; não use esse documento para decisões temporárias de uma única tarefa.
+
+Depois, acrescente ao final do `AGENTS.md` raiz:
+
+```markdown
+## Project-specific rules
+
+Before planning or editing, read `docs/PROJECT_RULES.md`.
+That document extends this contract for the entire repository.
+When the files conflict on a project-specific decision, follow
+`docs/PROJECT_RULES.md` within its declared scope.
+```
+
+Para uma regra restrita a uma feature, use um `AGENTS.md` aninhado. Por exemplo:
+
+```text
+Sources/Features/Camera/
+├── AGENTS.md
+├── CameraView.swift
+├── CameraViewModel.swift
+└── Components/
+```
+
+O arquivo `Camera/AGENTS.md` deve conter apenas regras próprias dessa feature, como uso de hardware, permissões, mocks e comandos de validação específicos. Ele não deve repetir todo o contrato da raiz.
+
+Veja [Como combinar com regras específicas](#como-combinar-com-regras-específicas) para entender escopo e precedência.
 
 ### 4. Versione o contrato
 
