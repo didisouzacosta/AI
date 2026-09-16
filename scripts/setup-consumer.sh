@@ -98,9 +98,14 @@ prepare_backup_directory() {
 link_shared_file() {
   local source="$1"
   local destination="$2"
+  local link_target="shared/$source"
 
   if [[ -L "$destination" ]]; then
-    return 0
+    if [[ "$(readlink "$destination")" == "$link_target" && -e "$destination" ]]; then
+      return 0
+    fi
+    unlink "$destination"
+    echo "Corrigido: link quebrado '$destination'"
   fi
   if [[ -e "$destination" ]]; then
     if [[ "$migrate_existing" != true ]]; then
@@ -113,7 +118,7 @@ link_shared_file() {
     echo "Backup: '$destination' -> '$backup_directory/$destination'"
   fi
 
-  ln -s "../shared/$source" "$destination"
+  ln -s "$link_target" "$destination"
 }
 
 if [[ ! -L "AGENTS.md" && -e "AGENTS.md" && "$migrate_existing" == true ]]; then

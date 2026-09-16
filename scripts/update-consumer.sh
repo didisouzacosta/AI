@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Uso: update-consumer.sh [CAMINHO_DO_PROJETO]
+
+Atualiza o submodule ai/shared para a versão mais recente de main e corrige
+links compartilhados quebrados. PROJECT_BRIEF.md e PROJECT_GUIDE.md não são
+alterados.
+EOF
+}
+
+project_argument="${1:-.}"
+if [[ "$project_argument" == "-h" || "$project_argument" == "--help" ]]; then
+  usage
+  exit 0
+fi
+if [[ $# -gt 1 ]]; then
+  usage >&2
+  exit 2
+fi
+
+source_path="${BASH_SOURCE[0]}"
+while [[ -L "$source_path" ]]; do
+  source_directory="$(cd -- "$(dirname -- "$source_path")" && pwd)"
+  linked_path="$(readlink "$source_path")"
+  if [[ "$linked_path" == /* ]]; then
+    source_path="$linked_path"
+  else
+    source_path="$source_directory/$linked_path"
+  fi
+done
+script_root="$(cd -- "$(dirname -- "$source_path")/.." && pwd)"
+
+project_root="$(cd -- "$project_argument" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "Erro: '$project_argument' deve existir e ser um projeto Git." >&2
+  exit 1
+}
+
+if [[ ! -d "$project_root/ai/shared" ]]; then
+  echo "Erro: o projeto não possui o submodule 'ai/shared'. Execute ai-bootstrap primeiro." >&2
+  exit 1
+fi
+
+cd "$project_root"
+bash "$script_root/scripts/setup-consumer.sh" --update
+
+cat <<EOF
+
+Dependência AI atualizada em: $project_root
+
+Revise e registre a nova versão no projeto consumidor:
+  git status
+  git add ai/shared ai/CODEX_ORCHESTRATOR.md ai/SWIFT_REFERENCE.md
+  git commit -m "chore: atualiza base compartilhada de IA"
+EOF

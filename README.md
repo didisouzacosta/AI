@@ -37,7 +37,9 @@ As responsabilidades são separadas assim:
 ## Uso em um projeto consumidor
 
 O projeto consumidor mantém seu próprio código, contexto e decisões de
-produto. A base compartilhada fornece as regras e os modelos:
+produto. A base AI é adicionada como uma dependência Git versionada, enquanto
+`PROJECT_BRIEF.md` e `PROJECT_GUIDE.md` permanecem documentos locais do
+projeto:
 
 ```text
 MeuProjeto/
@@ -55,78 +57,89 @@ MeuProjeto/
 └── Tests/
 ```
 
-O projeto consumidor deve adicionar esta base como um submodule em `ai/shared`.
-Isso registra no Git o commit exato da base usada por cada projeto e permite
-atualizações controladas:
+O submodule registra o commit exato da base usado por cada projeto e permite
+atualizações controladas.
+
+### Instalação única do comando
+
+Execute uma vez, a partir de uma cópia local desta base:
 
 ```bash
-git submodule add -b main https://github.com/didisouzacosta/AI.git ai/shared
-bash ai/shared/scripts/setup-consumer.sh
-```
-
-Para configurar também os subagents `Manager` e `Developer` no Codex em uma
-única operação, execute a partir de uma cópia desta base:
-
-```bash
-bash scripts/bootstrap-consumer.sh /caminho/para/MeuProjeto
-```
-
-O bootstrap cria links dos subagents para esta cópia versionada da base. Assim,
-não é necessário copiar manualmente os arquivos para `~/.codex/agents`.
-
-Para não informar o caminho da base AI em cada execução, instale o comando uma
-única vez a partir desta pasta:
-
-```bash
+cd /caminho/para/AI
 bash scripts/install-bootstrap.sh
 ```
 
-O instalador cria `~/.local/bin` quando necessário e registra esse diretório no
-`~/.zprofile` e no `~/.zshrc`, sem duplicar entradas. Depois, dentro de qualquer
-projeto consumidor, use somente:
+O instalador cria `~/.local/bin` quando necessário e instala dois comandos:
+
+- `ai-bootstrap`: configura um projeto consumidor novo ou existente;
+- `ai-update`: atualiza a dependência de um projeto já configurado.
+
+Ele também cria links para `Manager.toml` e `Developer.toml` em
+`~/.codex/agents`, preservando cópias existentes em backup. O instalador
+registra `~/.local/bin` no `~/.zprofile` e no `~/.zshrc` sem duplicar entradas.
+
+Ao terminar, feche e abra o terminal para carregar o novo `PATH`.
+
+### Configuração de um projeto
+
+Dentro da pasta raiz de um projeto Git, execute:
 
 ```bash
-ai-bootstrap .
+cd /caminho/para/MeuProjeto
+ai-bootstrap
 ```
 
-As novas sessões do zsh encontrarão o comando automaticamente. Para usar na
-sessão atual, aplique a linha de `PATH` exibida pelo instalador ou abra um novo
-terminal. Ao finalizar a instalação, feche e abra o terminal para carregar a
-configuração automaticamente.
+O comando usa a pasta atual automaticamente; não é necessário informar `.` nem
+o caminho da base AI. Ele adiciona `ai/shared` como submodule e cria os links
+dos arquivos compartilhados. Isso funciona mesmo quando o projeto ainda não
+possui a estrutura `ai/`.
 
-Para um projeto que ainda tem cópias antigas dos arquivos compartilhados, faça
+Também é possível informar outro projeto explicitamente:
+
+```bash
+ai-bootstrap /caminho/para/MeuProjeto
+```
+
+Para projetos que já possuem cópias antigas dos arquivos compartilhados, faça
 uma migração única com backup:
 
 ```bash
-bash scripts/bootstrap-consumer.sh --migrate-existing /caminho/para/MeuProjeto
+ai-bootstrap --migrate-existing
 ```
 
 O backup é criado em `.ai-base-migration-backup/`. Revise-o antes de decidir
 se algum conteúdo específico precisa ser incorporado ao projeto.
 
-O script cria os links dos arquivos compartilhados e, na primeira instalação,
-cria os documentos locais a partir dos templates:
+### Documentos locais do projeto
+
+Na primeira configuração, o bootstrap cria os documentos a partir dos
+templates compartilhados:
 
 ```bash
-cp ai/shared/ai/PROJECT_BRIEF.template.md ai/PROJECT_BRIEF.md
-cp ai/shared/ai/PROJECT_GUIDE.template.md ai/PROJECT_GUIDE.md
+ai/PROJECT_BRIEF.md
+ai/PROJECT_GUIDE.md
 ```
 
-Os comandos acima são apenas a forma manual equivalente. O script nunca
-substitui `ai/PROJECT_BRIEF.md` nem `ai/PROJECT_GUIDE.md`: eles permanecem
-versionados no projeto consumidor e não fazem parte da atualização da base.
+Esses arquivos descrevem o produto e a configuração específica do projeto.
+Nunca são substituídos por `ai-update`.
 
-Para atualizar a base compartilhada:
+### Atualização da dependência
+
+Dentro da pasta do projeto consumidor, execute:
 
 ```bash
-bash ai/shared/scripts/setup-consumer.sh --update
-git add ai/shared
+ai-update
+git status
+git add ai/shared ai/CODEX_ORCHESTRATOR.md ai/SWIFT_REFERENCE.md
 git commit -m "chore: atualiza base compartilhada de IA"
 ```
 
-O submodule continua apontando para um commit específico, portanto a
-atualização só entra no projeto consumidor quando for explicitamente registrada
-em commit. Para reproduzir um checkout existente, use:
+O `ai-update` atualiza o submodule para a versão mais recente de `main`, corrige
+links compartilhados quebrados e deixa o projeto consumidor pronto para revisão
+e commit. A atualização só passa a fazer parte do projeto depois que o novo
+ponteiro do submodule é commitado.
+
+Para reproduzir um checkout existente com a dependência, use:
 
 ```bash
 git clone --recurse-submodules <url-do-projeto>
@@ -157,9 +170,10 @@ deve declarar explicitamente a exceção e seu escopo.
 ## Agentes e links compartilhados
 
 Os arquivos em `ai/agents/` são a fonte versionada das definições técnicas dos
-subagentes Manager e Developer. O ambiente Codex pode expô-los por links globais em `~/.codex`; esses
-links são uma instalação local e não substituem os arquivos versionados deste
-repositório.
+subagentes Manager e Developer. O comando `install-bootstrap.sh` cria links
+globais em `~/.codex/agents` para esses arquivos, permitindo que o Codex os
+encontre sem cópia manual. Esses links são uma instalação local e apontam para
+a cópia da base AI usada durante a instalação.
 
 O remote oficial desta base é:
 

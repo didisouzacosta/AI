@@ -7,9 +7,10 @@ user_home="$(printf '%s' ~)"
 bin_directory="${AI_BIN_DIR:-$user_home/.local/bin}"
 command_path="$bin_directory/ai-bootstrap"
 source_path="$script_root/scripts/bootstrap-consumer.sh"
+update_source_path="$script_root/scripts/update-consumer.sh"
 
-if [[ ! -x "$source_path" ]]; then
-  echo "Erro: não encontrei o bootstrap executável em '$source_path'." >&2
+if [[ ! -x "$source_path" || ! -x "$update_source_path" ]]; then
+  echo "Erro: não encontrei os comandos bootstrap/update executáveis na base AI." >&2
   exit 1
 fi
 
@@ -17,17 +18,26 @@ mkdir -p "$bin_directory"
 bin_directory="$(cd -- "$bin_directory" && pwd)"
 command_path="$bin_directory/ai-bootstrap"
 
-if [[ -L "$command_path" && "$(readlink "$command_path")" == "$source_path" ]]; then
-  echo "Comando já instalado: '$command_path'"
-else
-  if [[ -e "$command_path" || -L "$command_path" ]]; then
-    echo "Erro: '$command_path' já existe e não aponta para esta base AI." >&2
+install_command_link() {
+  local command_name="$1"
+  local command_source="$2"
+  local command_target="$bin_directory/$command_name"
+
+  if [[ -L "$command_target" && "$(readlink "$command_target")" == "$command_source" ]]; then
+    echo "Comando já instalado: '$command_target'"
+    return 0
+  fi
+  if [[ -e "$command_target" || -L "$command_target" ]]; then
+    echo "Erro: '$command_target' já existe e não aponta para esta base AI." >&2
     echo "Remova-o ou defina AI_BIN_DIR para outro diretório." >&2
     exit 1
   fi
-  ln -s "$source_path" "$command_path"
-  echo "Comando instalado: '$command_path'"
-fi
+  ln -s "$command_source" "$command_target"
+  echo "Comando instalado: '$command_target'"
+}
+
+install_command_link ai-bootstrap "$source_path"
+install_command_link ai-update "$update_source_path"
 
 ensure_zsh_path() {
   local profile_path="$1"
@@ -59,4 +69,5 @@ case ":${PATH}:" in
   ;;
 esac
 
-echo "Use: ai-bootstrap ."
+echo "Use: ai-bootstrap para configurar um projeto."
+echo "Use: ai-update para atualizar um projeto configurado."

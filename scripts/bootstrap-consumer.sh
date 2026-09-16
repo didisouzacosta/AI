@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Uso: bootstrap-consumer.sh [--migrate-existing] CAMINHO_DO_PROJETO
+Uso: bootstrap-consumer.sh [--migrate-existing] [CAMINHO_DO_PROJETO]
 
 Configura um projeto consumidor em uma única operação:
   1. instala os subagents Manager e Developer no diretório do Codex;
@@ -47,11 +47,20 @@ for argument in "$@"; do
 done
 
 if [[ -z "$project_argument" ]]; then
-  usage >&2
-  exit 2
+  project_argument="."
 fi
 
-script_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+source_path="${BASH_SOURCE[0]}"
+while [[ -L "$source_path" ]]; do
+  source_directory="$(cd -- "$(dirname -- "$source_path")" && pwd)"
+  linked_path="$(readlink "$source_path")"
+  if [[ "$linked_path" == /* ]]; then
+    source_path="$linked_path"
+  else
+    source_path="$source_directory/$linked_path"
+  fi
+done
+script_root="$(cd -- "$(dirname -- "$source_path")/.." && pwd)"
 codex_config_dir="${CODEX_CONFIG_DIR:-$(printf '%s' ~)/.codex}"
 agents_directory="$codex_config_dir/agents"
 
@@ -85,10 +94,6 @@ install_agent_link() {
   fi
 
   if [[ -e "$destination" || -L "$destination" ]]; then
-    if [[ "$migrate_existing" != true ]]; then
-      echo "Erro: '$destination' já existe. Use --migrate-existing para preservá-lo e migrá-lo." >&2
-      exit 1
-    fi
     prepare_backup_directory
     mv "$destination" "$backup_directory/$agent_name.toml"
     echo "Backup: '$destination' -> '$backup_directory/$agent_name.toml'"
