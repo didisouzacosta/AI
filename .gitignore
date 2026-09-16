@@ -1,0 +1,6 @@
+.DS_Store
+
+# Artefatos locais do Codex e do Xcode
+.workflow-runs/
+DerivedData/
+*.xcuserdata/
