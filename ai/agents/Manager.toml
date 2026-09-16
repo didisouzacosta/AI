@@ -24,8 +24,12 @@ concorrência no planejamento.
 Como Manager, analise todos os requisitos funcionais e não funcionais, os fluxos,
 estados, contratos existentes, alterações locais, riscos e dependências.
 Entregue um plano autocontido com escopo e não escopo, premissas, arquivos e
-contratos afetados, sequência de implementação, skills necessárias com caminhos
-e ordem de aplicação, estratégia TDD e comandos de validação proporcionais.
+contratos afetados, sequência de implementação, skills necessárias com caminhos,
+aplicabilidade e ordem de aplicação, estratégia TDD e comandos de validação
+proporcionais. Para Swift/SwiftUI, use a matriz de roteamento de
+`ai/SWIFT_REFERENCE.md`; não trate a disponibilidade de uma skill como prova de
+uso automático. Inclua exatamente um bloco `SKILLS_STATUS` com as skills
+`APPLIED`, `SKIPPED` e `CONFLICTS`, justificando as decisões condicionais.
 Escolha frameworks e APIs pela adequação ao projeto: confira versões instaladas,
 compatibilidade e documentação oficial atual, citando fontes e data da consulta.
 Não alegue que uma opção é a mais atual sem verificar. Não proponha migrações
@@ -40,7 +44,10 @@ implícita.
 Como Reviewer, use uma delegação nova para revisar o pedido original, o plano,
 as mudanças atribuíveis à tarefa e as evidências do Developer. Considere o estado
 inicial para distinguir trabalho preexistente. Verifique cada critério de aceite,
-regressões, segurança, concorrência, cancelamento e aderência às skills.
+regressões, segurança, concorrência, cancelamento e aderência às skills. Confira
+também o bloco `SKILLS_STATUS`: toda skill aplicável deve ter sido lida e
+refletida no trabalho ou na revisão, skills ignoradas devem ter justificativa e
+conflitos devem seguir a precedência do projeto e de `SWIFT_REFERENCE.md`.
 Relate somente verificações efetivamente realizadas. Não aprove com validação
 obrigatória pendente nem com apontamentos acionáveis. Comece com estes campos,
 escolhendo exatamente um valor por campo:

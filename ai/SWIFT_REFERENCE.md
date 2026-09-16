@@ -12,6 +12,80 @@ Este documento é a referência estrutural e semântica para projetos Swift/Swif
 - Recursos, serviços externos e persistência devem ser isolados atrás de protocolos ou adaptadores quando isso melhorar testabilidade e substituição.
 - O comportamento conectado do projeto consumidor continua sendo a fonte de verdade para nomes, fluxos e compatibilidade.
 
+## Plano operacional de uso das skills
+
+Skills são pacotes de instruções para orientar o modelo; sua presença em
+`ai/skills/` não significa que sejam lidas ou executadas automaticamente em
+toda tarefa. O modelo deve selecionar as skills pelo escopo real do pedido,
+ler integralmente o `SKILL.md` de cada skill aplicável antes do trabalho
+correspondente e registrar as decisões no plano e no relatório da execução.
+
+### Matriz de roteamento
+
+| Escopo da tarefa | Skill | Aplicação |
+| --- | --- | --- |
+| Implementar, corrigir, revisar ou refatorar qualquer código Swift/SwiftUI | [`swiftui-expert-skill`](./skills/swiftui-expert-skill/SKILL.md) | Obrigatória |
+| Qualquer tarefa que leia, escreva ou altere Swift | [`swift-concurrency`](./skills/swift-concurrency/SKILL.md) | Obrigatória, inclusive no planejamento; confirme as configurações reais de concorrência |
+| Construir, alterar ou revisar telas, navegação, controles ou composição SwiftUI | [`swiftui-ui-patterns`](./skills/swiftui-ui-patterns/SKILL.md) | Obrigatória para o escopo de UI |
+| Construir ou revisar janelas, menus, commands, toolbars, Settings, split views ou inspectors de macOS | [`swiftui-patterns`](./skills/swiftui-patterns/SKILL.md) | Condicional à superfície macOS envolvida |
+| Refatorar estrutura de Views, ownership de estado ou composição | [`swiftui-view-refactor`](./skills/swiftui-view-refactor/SKILL.md) | Condicional à refatoração |
+| Adotar, revisar ou corrigir Liquid Glass | [`swiftui-liquid-glass`](./skills/swiftui-liquid-glass/SKILL.md) | Condicional ao uso solicitado ou existente; não implica redesign geral |
+| Construir, executar ou diagnosticar o app no iOS Simulator | [`ios-debugger-agent`](./skills/ios-debugger-agent/SKILL.md) | Condicional à validação no Simulator |
+
+Não carregue uma skill condicional apenas por hábito. Quando ela não for
+aplicável, registre `SKIPPED` e o motivo. A descrição da skill é um gatilho de
+seleção, não uma autorização para ampliar o escopo da tarefa.
+
+### Ordem de leitura e aplicação
+
+1. Leia as instruções do checkout, o brief e o guide do projeto consumidor,
+   quando existirem, e esta referência.
+2. Para qualquer código Swift, leia `swift-concurrency` antes de escolher
+   isolamento, `Task`, `Sendable`, `@MainActor` ou APIs relacionadas. Confirme
+   `SWIFT_VERSION`, `SWIFT_STRICT_CONCURRENCY`,
+   `SWIFT_DEFAULT_ACTOR_ISOLATION` e upcoming features no projeto real.
+3. Leia `swiftui-expert-skill` para estabelecer o baseline de estado,
+   composição, APIs, performance e acessibilidade.
+4. Leia as skills condicionais conforme a matriz e, quando indicado por elas,
+   somente as referências internas necessárias ao caso.
+5. Durante a implementação ou revisão, aplique os checklists das skills sem
+   substituir contratos, nomes, arquitetura ou compatibilidade já existentes.
+6. Antes de concluir, valide os critérios de aceite e registre skills aplicadas,
+   ignoradas e conflitos resolvidos.
+
+### Precedência e conflitos
+
+As regras do projeto consumidor e desta referência prevalecem sobre sugestões
+genéricas de uma skill. Em particular:
+
+- A exigência de MVVM desta referência prevalece sobre a orientação de
+  `swiftui-view-refactor` de usar MV por padrão em projetos genéricos. Use essa
+  skill para melhorar a estrutura sem remover ViewModels comportamentais
+  exigidos pelo projeto.
+- `swiftui-patterns` é uma skill de padrões de macOS; não a use para justificar
+  APIs ou layouts de desktop em uma tela iOS.
+- Liquid Glass é opcional. Só adote-o quando fizer sentido para o componente,
+  quando já existir na feature ou quando o pedido o solicitar, sempre com
+  disponibilidade e fallback compatíveis.
+- Se uma skill e o código/configuração existente divergirem, preserve o
+  comportamento conectado e registre a exceção, o risco e a validação
+  necessária.
+
+### Registro obrigatório no plano e no relatório
+
+O Manager deve incluir este bloco no plano, e o Developer deve atualizá-lo no
+relatório final:
+
+```text
+SKILLS_STATUS:
+- APPLIED: caminho — motivo — referências consultadas
+- SKIPPED: caminho — motivo de não aplicabilidade
+- CONFLICTS: skill/regra — decisão adotada — validação
+```
+
+`SKILLS_STATUS` não substitui a leitura das skills. Ele torna a seleção
+auditável e impede alegar uso automático sem evidência.
+
 ## Base técnica e segurança
 
 - Antes de usar uma API, confirme a versão mínima do target, a versão do Swift e as configurações de concorrência do projeto (`SWIFT_VERSION`, `SWIFT_STRICT_CONCURRENCY`, `SWIFT_DEFAULT_ACTOR_ISOLATION` e upcoming features).

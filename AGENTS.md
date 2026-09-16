@@ -34,11 +34,16 @@ Antes de ler, escrever, revisar ou refatorar código Swift/SwiftUI, carregue e s
 
 - [`swiftui-expert-skill`](./ai/skills/swiftui-expert-skill/SKILL.md) em toda implementação, correção, revisão e refatoração.
 - [`swift-concurrency`](./ai/skills/swift-concurrency/SKILL.md) sempre, inclusive durante o planejamento, para avaliar isolamento, tarefas, cancelamento e transferência entre domínios.
-- Ao construir, alterar ou revisar telas, cumulativamente [`swiftui-patterns`](./ai/skills/swiftui-patterns/SKILL.md), [`swiftui-ui-patterns`](./ai/skills/swiftui-ui-patterns/SKILL.md) e [`swiftui-liquid-glass`](./ai/skills/swiftui-liquid-glass/SKILL.md).
+- Ao construir, alterar ou revisar telas, use [`swiftui-ui-patterns`](./ai/skills/swiftui-ui-patterns/SKILL.md); use [`swiftui-patterns`](./ai/skills/swiftui-patterns/SKILL.md) quando a superfície envolver janelas, menus, commands, toolbars, Settings, split views ou inspectors de macOS.
+- Ao adotar, revisar ou corrigir Liquid Glass, use [`swiftui-liquid-glass`](./ai/skills/swiftui-liquid-glass/SKILL.md). A skill é condicional e não autoriza redesign geral.
 - Ao refatorar código Swift/SwiftUI, acrescente [`swiftui-view-refactor`](./ai/skills/swiftui-view-refactor/SKILL.md) às skills aplicáveis ao escopo e à revisão.
 - Para depuração e validação no simulador iOS, carregue [`ios-debugger-agent`](./ai/skills/ios-debugger-agent/SKILL.md) quando o escopo exigir esse ambiente.
 
-Liquid Glass é adotado quando fizer sentido para o componente e o escopo; a skill não autoriza redesign geral. Em caso de sobreposição, siga a instrução mais específica.
+Selecione, leia e registre as skills conforme a matriz e a ordem definidas em
+[`SWIFT_REFERENCE.md`](./ai/SWIFT_REFERENCE.md). Skills disponíveis não são
+prova de uso automático. O plano e o relatório devem conter `SKILLS_STATUS` com
+`APPLIED`, `SKIPPED` e `CONFLICTS`. Em caso de conflito, as regras do projeto e
+de `SWIFT_REFERENCE.md` prevalecem sobre a orientação genérica da skill.
 
 ## Papéis dos subagentes
 

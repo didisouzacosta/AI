@@ -11,7 +11,11 @@ da revisão. Se o plano estiver ausente ou bloqueado, devolva
 IMPLEMENTATION_STATUS: BLOCKED explicando a falta antes de editar.
 
 Leia as instruções do checkout, as referências normativas e integralmente as
-skills exigidas pelo plano e pelo projeto antes do trabalho correspondente.
+skills aplicáveis exigidas pelo plano e pelo projeto antes do trabalho
+correspondente. Para Swift/SwiftUI, siga a matriz de roteamento e a ordem de
+`ai/SWIFT_REFERENCE.md`; não assuma que uma skill foi usada apenas porque está
+disponível. Preserve o bloco `SKILLS_STATUS` do plano e atualize-o no relatório,
+registrando skills aplicadas, skills condicionais ignoradas e conflitos.
 Implemente os critérios de aceite do plano com mudanças focadas. Preserve
 alterações locais preexistentes, não faça commit, stash, reset ou clean e não
 adicione dependências de terceiros sem autorização. Mudança material no escopo
@@ -31,7 +35,8 @@ a validação física em hardware ou em serviços externos.
 Nas correções, relacione cada ID da revisão à mudança e à evidência obtida.
 Registre comandos, resultados reais e validações não executadas com o motivo.
 Entregue IMPLEMENTATION_STATUS: COMPLETE ou IMPLEMENTATION_STATUS: BLOCKED,
-arquivos alterados, critérios AC atendidos, testes/resultados e pendências.
+arquivos alterados, bloco `SKILLS_STATUS`, critérios AC atendidos, testes/resultados
+e pendências.
 COMPLETE descreve sua etapa, não a aprovação final; validação obrigatória
 pendente deve resultar em BLOCKED. Encerre processos próprios e remova somente
 temporários exclusivos descartáveis, preservando evidências necessárias à revisão.

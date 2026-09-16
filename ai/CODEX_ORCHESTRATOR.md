@@ -38,7 +38,8 @@ O plano deve ser autocontido e incluir:
 - arquivos, contratos, integrações e mudanças preexistentes relevantes;
 - abordagem com frameworks/APIs adequados às versões e à arquitetura do projeto;
 - fontes oficiais e data de consulta para escolhas que dependam de atualidade;
-- skills necessárias, caminhos e ordem de leitura e aplicação;
+- skills necessárias, caminhos, aplicabilidade, ordem de leitura e aplicação;
+- bloco `SKILLS_STATUS` com skills aplicadas, ignoradas e conflitos resolvidos;
 - sequência de implementação, estratégia TDD e comandos de validação;
 - riscos, regressões, segurança, concorrência e cancelamento;
 - critérios AC1, AC2 etc., associados aos requisitos, resultados e validações.
@@ -48,13 +49,20 @@ Não introduza dependências de terceiros sem aprovação explícita. Marque
 Ambiguidades impeditivas resultam em `PLAN_STATUS: BLOCKED`, com a informação
 ou autorização necessária. Não omita um bloqueio para avançar à implementação.
 
+Para tarefas Swift/SwiftUI, use a matriz e a ordem de aplicação de
+`ai/SWIFT_REFERENCE.md`. Skills não são executadas automaticamente apenas por
+estarem disponíveis: o Manager deve selecionar as aplicáveis pelo escopo,
+entregar seus caminhos e ordem ao Developer, e justificar cada skill
+condicional não utilizada. Regras específicas do projeto prevalecem sobre
+orientações genéricas das skills; conflitos devem ser registrados no plano.
+
 ## Ciclo e aprovação
 
 1. O principal registra o estado inicial e delega a análise ao Manager.
 2. Aguarda o plano READY e entrega ao Developer o pedido original, o plano completo,
    o escopo autorizado e o estado inicial.
 3. O Developer implementa, valida e entrega os arquivos alterados, os critérios atendidos,
-   os comandos executados, resultados e pendências.
+   o bloco `SKILLS_STATUS`, os comandos executados, resultados e pendências.
 4. O principal cria uma nova sessão do Manager como Reviewer e fornece o pedido,
    plano, mudanças atribuíveis à tarefa e evidências.
 5. `CHANGES_REQUESTED` volta ao Developer com todos os apontamentos. Cada correção
@@ -69,6 +77,9 @@ prioridade, arquivo/linha, evidência, impacto, correção esperada e validaçã
 `APPROVED` exige `FINDINGS: none` e `MANDATORY_VALIDATION_PENDING: no`.
 Bloqueios, limite atingido ou validação obrigatória pendente impedem alegar
 conclusão. Mudanças após a revisão invalidam a aprovação e exigem nova análise.
+Na revisão, o Manager também deve conferir se cada skill aplicável foi lida e
+aplicada, se as skills condicionais ignoradas têm justificativa e se os conflitos
+foram resolvidos conforme a precedência do projeto.
 
 O agente principal aplica essas regras de coordenação. As configurações não fornecem
 um verificador programático de relatórios, fingerprint ou limite de revisões.
