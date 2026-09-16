@@ -64,11 +64,41 @@ git submodule add -b main https://github.com/didisouzacosta/AI.git ai/shared
 bash ai/shared/scripts/setup-consumer.sh
 ```
 
+Para configurar também os subagents `Manager` e `Developer` no Codex em uma
+única operação, execute a partir de uma cópia desta base:
+
+```bash
+bash scripts/bootstrap-consumer.sh /caminho/para/MeuProjeto
+```
+
+O bootstrap cria links dos subagents para esta cópia versionada da base. Assim,
+não é necessário copiar manualmente os arquivos para `~/.codex/agents`.
+
+Para não informar o caminho da base AI em cada execução, instale o comando uma
+única vez a partir desta pasta:
+
+```bash
+bash scripts/install-bootstrap.sh
+```
+
+O instalador cria `~/.local/bin` quando necessário e registra esse diretório no
+`~/.zprofile` e no `~/.zshrc`, sem duplicar entradas. Depois, dentro de qualquer
+projeto consumidor, use somente:
+
+```bash
+ai-bootstrap .
+```
+
+As novas sessões do zsh encontrarão o comando automaticamente. Para usar na
+sessão atual, aplique a linha de `PATH` exibida pelo instalador ou abra um novo
+terminal. Ao finalizar a instalação, feche e abra o terminal para carregar a
+configuração automaticamente.
+
 Para um projeto que ainda tem cópias antigas dos arquivos compartilhados, faça
 uma migração única com backup:
 
 ```bash
-bash ai/shared/scripts/setup-consumer.sh --migrate-existing
+bash scripts/bootstrap-consumer.sh --migrate-existing /caminho/para/MeuProjeto
 ```
 
 O backup é criado em `.ai-base-migration-backup/`. Revise-o antes de decidir
