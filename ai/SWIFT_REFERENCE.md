@@ -8,7 +8,10 @@ Este documento é a referência estrutural e semântica para projetos Swift/Swif
 - Swift Testing é a única tecnologia de testes autorizada neste padrão.
 - O código deve depender de contratos e abstrações pequenas, com composição explícita no ponto de entrada.
 - Views devem ser declarativas, previsíveis e livres de efeitos colaterais no `body`.
-- A documentação não presume um target, uma versão mínima de sistema ou configurações de build que não estejam confirmadas no projeto consumidor.
+- Swift 6 é obrigatório para todo projeto consumidor que adota esta base. O
+  projeto deve usar Swift 6 no toolchain e no language mode; a documentação não
+  presume apenas o target, a versão mínima de sistema ou outras configurações
+  de build que não estejam confirmadas no projeto consumidor.
 - Recursos, serviços externos e persistência devem ser isolados atrás de protocolos ou adaptadores quando isso melhorar testabilidade e substituição.
 - O comportamento conectado do projeto consumidor continua sendo a fonte de verdade para nomes, fluxos e compatibilidade.
 
@@ -42,7 +45,8 @@ seleção, não uma autorização para ampliar o escopo da tarefa.
    quando existirem, e esta referência.
 2. Para qualquer código Swift, leia `swift-concurrency` antes de escolher
    isolamento, `Task`, `Sendable`, `@MainActor` ou APIs relacionadas. Confirme
-   `SWIFT_VERSION`, `SWIFT_STRICT_CONCURRENCY`,
+   que `SWIFT_VERSION` está configurado como `6.0` e avalie
+   `SWIFT_STRICT_CONCURRENCY`,
    `SWIFT_DEFAULT_ACTOR_ISOLATION` e upcoming features no projeto real.
 3. Leia `swiftui-expert-skill` para estabelecer o baseline de estado,
    composição, APIs, performance e acessibilidade.
@@ -88,8 +92,13 @@ auditável e impede alegar uso automático sem evidência.
 
 ## Base técnica e segurança
 
-- Antes de usar uma API, confirme a versão mínima do target, a versão do Swift e as configurações de concorrência do projeto (`SWIFT_VERSION`, `SWIFT_STRICT_CONCURRENCY`, `SWIFT_DEFAULT_ACTOR_ISOLATION` e upcoming features).
-- Prefira APIs atuais compatíveis com o target real. Não introduza disponibilidade de plataforma ou migrações de linguagem apenas porque esta referência foi atualizada.
+- Antes de usar uma API, confirme a versão mínima do target e as configurações
+  de concorrência do projeto (`SWIFT_VERSION`, `SWIFT_STRICT_CONCURRENCY`,
+  `SWIFT_DEFAULT_ACTOR_ISOLATION` e upcoming features). `SWIFT_VERSION` deve
+  ser `6.0`.
+- Prefira APIs atuais compatíveis com o target real. Não introduza
+  disponibilidade de plataforma apenas porque esta referência foi atualizada.
+  Projetos abaixo de Swift 6 devem ser migrados antes de adotar esta base.
 - Não aplique `@MainActor` globalmente como correção automática. Use isolamento onde o dado ou a operação realmente exigirem execução no ator principal.
 - Segredos, tokens, certificados, chaves privadas e dados pessoais não devem ser armazenados no código-fonte, nos assets, em logs ou em arquivos versionados.
 - Dados sensíveis devem usar o mecanismo seguro apropriado à plataforma e ao risco; não use `UserDefaults` como cofre.
