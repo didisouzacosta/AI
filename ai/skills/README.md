@@ -15,7 +15,7 @@ Skills atualmente copiadas:
 - swiftui-view-refactor
 - ios-debugger-agent
 
-Em cada projeto consumidor, `ai/skills` pode ser um único link para esta pasta
-compartilhada ou uma cópia controlada. Para atualizar as cópias, repita a
-importação a partir das fontes oficiais instaladas no ambiente Codex e revise
-o diff antes de distribuir a atualização.
+Em cada projeto consumidor, `ai/skills` deve preferencialmente ser um link para
+`ai/shared/ai/skills`, com `ai/shared` fornecido por este repositório como
+submodule. Assim, as skills acompanham o commit versionado da base sem serem
+copiadas para cada projeto.

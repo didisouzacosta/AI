@@ -97,11 +97,14 @@ Mantenha os seguintes links globais para a raiz compartilhada existente:
 | `~/.codex/agents/Manager.toml` | `ai/agents/Manager.toml` |
 | `~/.codex/agents/Developer.toml` | `ai/agents/Developer.toml` |
 
-Nos projetos consumidores, preserve os links ou cópias controladas para as
-instruções, o orquestrador, a referência Swift, os templates e as skills
-compartilhadas. `PROJECT_BRIEF.md` e `PROJECT_GUIDE.md` contêm contexto próprio
-de cada projeto e permanecem locais. Não substitua arquivos existentes por
-links sem conferir o alvo e o conteúdo.
+Nos projetos consumidores, prefira adicionar esta base como submodule em
+`ai/shared` e criar links para `AGENTS.md`, o orquestrador, a referência Swift,
+as definições de agentes e as skills compartilhadas. `PROJECT_BRIEF.md` e
+`PROJECT_GUIDE.md` contêm contexto próprio de cada projeto, permanecem locais e
+jamais devem ser substituídos durante uma atualização da dependência. Não
+substitua arquivos existentes por links sem conferir o alvo e o conteúdo; o
+script `scripts/setup-consumer.sh` faz essa instalação de forma idempotente e
+preserva arquivos locais existentes.
 
 Os históricos existentes em `.workflow-runs/` permanecem preservados como
 evidência de execuções anteriores. A configuração nativa não depende deles nem

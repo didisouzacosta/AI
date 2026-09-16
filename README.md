@@ -41,26 +41,72 @@ produto. A base compartilhada fornece as regras e os modelos:
 
 ```text
 MeuProjeto/
-├── AGENTS.md
+├── AGENTS.md -> ai/shared/AGENTS.md
 ├── ai/
+│   ├── shared/              # submodule desta base
 │   ├── PROJECT_BRIEF.md
 │   ├── PROJECT_GUIDE.md
-│   └── <referências compartilhadas ou links para esta base>
+│   ├── CODEX_ORCHESTRATOR.md -> shared/ai/CODEX_ORCHESTRATOR.md
+│   ├── SWIFT_REFERENCE.md -> shared/ai/SWIFT_REFERENCE.md
+│   ├── agents/ -> shared/ai/agents
+│   └── skills/ -> shared/ai/skills
 ├── Resources/
 ├── Sources/
 └── Tests/
 ```
 
-Depois de obter esta base, copie os templates para o projeto consumidor e
-preencha-os com o contexto real do projeto:
+O projeto consumidor deve adicionar esta base como um submodule em `ai/shared`.
+Isso registra no Git o commit exato da base usada por cada projeto e permite
+atualizações controladas:
 
 ```bash
-cp ai/PROJECT_BRIEF.template.md /caminho/para/MeuProjeto/ai/PROJECT_BRIEF.md
-cp ai/PROJECT_GUIDE.template.md /caminho/para/MeuProjeto/ai/PROJECT_GUIDE.md
+git submodule add -b main https://github.com/didisouzacosta/AI.git ai/shared
+bash ai/shared/scripts/setup-consumer.sh
 ```
 
-Os arquivos preenchidos permanecem no projeto consumidor. Não substitua os
-templates desta base por decisões específicas de um aplicativo.
+Para um projeto que ainda tem cópias antigas dos arquivos compartilhados, faça
+uma migração única com backup:
+
+```bash
+bash ai/shared/scripts/setup-consumer.sh --migrate-existing
+```
+
+O backup é criado em `.ai-base-migration-backup/`. Revise-o antes de decidir
+se algum conteúdo específico precisa ser incorporado ao projeto.
+
+O script cria os links dos arquivos compartilhados e, na primeira instalação,
+cria os documentos locais a partir dos templates:
+
+```bash
+cp ai/shared/ai/PROJECT_BRIEF.template.md ai/PROJECT_BRIEF.md
+cp ai/shared/ai/PROJECT_GUIDE.template.md ai/PROJECT_GUIDE.md
+```
+
+Os comandos acima são apenas a forma manual equivalente. O script nunca
+substitui `ai/PROJECT_BRIEF.md` nem `ai/PROJECT_GUIDE.md`: eles permanecem
+versionados no projeto consumidor e não fazem parte da atualização da base.
+
+Para atualizar a base compartilhada:
+
+```bash
+bash ai/shared/scripts/setup-consumer.sh --update
+git add ai/shared
+git commit -m "chore: atualiza base compartilhada de IA"
+```
+
+O submodule continua apontando para um commit específico, portanto a
+atualização só entra no projeto consumidor quando for explicitamente registrada
+em commit. Para reproduzir um checkout existente, use:
+
+```bash
+git clone --recurse-submodules <url-do-projeto>
+```
+
+ou, em um clone já existente:
+
+```bash
+git submodule update --init --recursive
+```
 
 ## Precedência e fontes de verdade
 
