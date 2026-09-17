@@ -6,9 +6,10 @@ usage() {
   cat <<'EOF'
 Uso: update-consumer.sh [CAMINHO_DO_PROJETO]
 
-Atualiza o submodule ai/shared para a versão mais recente de main e corrige
-links compartilhados quebrados. PROJECT_BRIEF.md e PROJECT_GUIDE.md não são
-alterados.
+Atualiza o submodule ai/shared para a versão mais recente de main e valida os
+links compartilhados. PROJECT_BRIEF.md e PROJECT_GUIDE.md não são
+alterados. Se o projeto ainda usa o layout legado ai -> .ai-project, execute
+ai-bootstrap primeiro para preservar a cópia de recuperação antes da atualização.
 EOF
 }
 
@@ -34,10 +35,42 @@ while [[ -L "$source_path" ]]; do
 done
 script_root="$(cd -- "$(dirname -- "$source_path")/.." && pwd)"
 
+normalize_link_target() {
+  local link_path="$1"
+  local target=""
+  local target_directory=""
+  local target_base=""
+  local parent_directory=""
+  target="$(readlink "$link_path")" || return 1
+  if [[ "$target" == /* ]]; then
+    target_directory="$(dirname -- "$target")"
+    target_base="$(basename -- "$target")"
+  else
+    target_directory="$(dirname -- "$link_path")/$(dirname -- "$target")"
+    target_base="$(basename -- "$target")"
+  fi
+  parent_directory="$(cd -P -- "$target_directory" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s\n' "$parent_directory" "$target_base"
+}
+
 project_root="$(cd -- "$project_argument" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "Erro: '$project_argument' deve existir e ser um projeto Git." >&2
   exit 1
 }
+
+if [[ -L "$project_root/ai" ]]; then
+  legacy_target="$(normalize_link_target "$project_root/ai" 2>/dev/null || true)"
+  if [[ -e "$project_root/ai" && "$legacy_target" == "$project_root/.ai-project" ]]; then
+    echo "Erro: o projeto ainda usa o layout legado 'ai -> .ai-project'." >&2
+    echo "Diagnóstico: ai-update não atualiza esse layout para evitar escrever através do symlink." >&2
+    echo "Recuperação: execute ai-bootstrap no projeto; '.ai-project' será preservado." >&2
+    exit 1
+  fi
+  if [[ ! -e "$project_root/ai" ]]; then
+    echo "Erro: o link 'ai' está quebrado; corrija o layout antes de atualizar." >&2
+    exit 1
+  fi
+fi
 
 if [[ ! -d "$project_root/ai/shared" ]]; then
   echo "Erro: o projeto não possui o submodule 'ai/shared'. Execute ai-bootstrap primeiro." >&2

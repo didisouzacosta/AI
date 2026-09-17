@@ -7,9 +7,10 @@ usage() {
 Uso: bootstrap-consumer.sh [--migrate-existing] [CAMINHO_DO_PROJETO]
 
 Configura um projeto consumidor em uma única operação:
-  1. instala os subagents Manager e Developer no diretório do Codex;
-  2. adiciona/configura a base AI como submodule no projeto;
-  3. preserva PROJECT_BRIEF.md e PROJECT_GUIDE.md no projeto consumidor.
+  1. adiciona/configura a base AI como submodule no projeto;
+  2. migra automaticamente o layout legado ai -> .ai-project quando seguro;
+  3. instala os subagents Manager e Developer no diretório do Codex;
+  4. preserva PROJECT_BRIEF.md e PROJECT_GUIDE.md no projeto consumidor.
 
 Opções:
   --migrate-existing   migra cópias existentes dos arquivos compartilhados
@@ -74,12 +75,15 @@ project_root="$(cd -- "$project_argument" 2>/dev/null && git rev-parse --show-to
   exit 1
 }
 
-mkdir -p "$agents_directory"
 backup_directory=""
 prepare_backup_directory() {
   if [[ -z "$backup_directory" ]]; then
     backup_directory="$agents_directory/.ai-base-migration-backup/$(date +%Y%m%d-%H%M%S)"
-    mkdir -p "$backup_directory"
+    if ! mkdir -p "$backup_directory"; then
+      echo "Erro: não foi possível criar o backup dos subagents em '$backup_directory'." >&2
+      backup_directory=""
+      return 1
+    fi
   fi
 }
 
@@ -94,29 +98,59 @@ install_agent_link() {
   fi
 
   if [[ -e "$destination" || -L "$destination" ]]; then
-    prepare_backup_directory
-    mv "$destination" "$backup_directory/$agent_name.toml"
+    if ! prepare_backup_directory; then
+      return 1
+    fi
+    if ! mv "$destination" "$backup_directory/$agent_name.toml"; then
+      echo "Erro: não foi possível mover '$destination' para '$backup_directory/$agent_name.toml'." >&2
+      return 1
+    fi
     echo "Backup: '$destination' -> '$backup_directory/$agent_name.toml'"
   fi
 
-  ln -s "$source" "$destination"
+  if ! ln -s "$source" "$destination"; then
+    echo "Erro: não foi possível criar o link do subagent '$destination'." >&2
+    return 1
+  fi
   echo "Instalado: '$destination' -> '$source'"
 }
 
-install_agent_link Manager
-install_agent_link Developer
-
 cd "$project_root"
 if [[ "$migrate_existing" == true ]]; then
-  bash "$script_root/scripts/setup-consumer.sh" --migrate-existing
+  if ! bash "$script_root/scripts/setup-consumer.sh" --migrate-existing; then
+    echo "Erro: o projeto não foi configurado; os agentes globais não foram alterados." >&2
+    exit 1
+  fi
 else
-  bash "$script_root/scripts/setup-consumer.sh"
+  if ! bash "$script_root/scripts/setup-consumer.sh"; then
+    echo "Erro: o projeto não foi configurado; os agentes globais não foram alterados." >&2
+    exit 1
+  fi
+fi
+
+agent_install_failed=false
+if ! mkdir -p "$agents_directory"; then
+  echo "Erro: não foi possível criar o diretório de agentes '$agents_directory'." >&2
+  agent_install_failed=true
+else
+  if ! install_agent_link Manager; then
+    agent_install_failed=true
+  fi
+  if ! install_agent_link Developer; then
+    agent_install_failed=true
+  fi
+fi
+
+if [[ "$agent_install_failed" == true ]]; then
+  echo "Aviso: o projeto está configurado, mas há agentes globais pendentes em '$agents_directory'." >&2
+  echo "Diagnóstico: corrija as permissões ou conflitos e execute ai-bootstrap novamente." >&2
+else
+  echo "Agentes globais configurados em: $agents_directory"
 fi
 
 cat <<EOF
 
 Projeto configurado: $project_root
-Subagents configurados em: $agents_directory
 
 Próximos passos:
   cd "$project_root"
@@ -127,4 +161,8 @@ EOF
 if [[ -n "$backup_directory" ]]; then
   echo "Backups dos subagents anteriores: '$backup_directory'"
   echo "Revise-os e não os adicione ao commit."
+fi
+
+if [[ "$agent_install_failed" == true ]]; then
+  exit 1
 fi

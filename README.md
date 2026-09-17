@@ -94,6 +94,14 @@ o caminho da base AI. Ele adiciona `ai/shared` como submodule e cria os links
 dos arquivos compartilhados. Isso funciona mesmo quando o projeto ainda não
 possui a estrutura `ai/`.
 
+Se o projeto ainda usa o layout legado `ai -> .ai-project`, o setup faz uma
+migração automática antes de configurar o submodule: cria uma cópia real em
+`ai/`, preserva `.ai-project` intacto como recuperação e mantém os documentos,
+extras, permissões e symlinks locais. O preflight recusa links quebrados,
+destinos externos ou ambíguos, documentos locais symlink e metadados Git
+conflitantes; nesses casos nenhum dado é apagado e o diagnóstico indica a
+recuperação manual necessária.
+
 Também é possível informar outro projeto explicitamente:
 
 ```bash
@@ -109,6 +117,12 @@ ai-bootstrap --migrate-existing
 
 O backup é criado em `.ai-base-migration-backup/`. Revise-o antes de decidir
 se algum conteúdo específico precisa ser incorporado ao projeto.
+
+Sem `--migrate-existing`, cópias reais dos arquivos compartilhados são
+preservadas e os links ausentes são criados somente nos destinos livres. Com a
+flag, cópias reais são movidas para um backup datado antes da substituição;
+links canônicos já corretos são mantidos e novas execuções idempotentes não
+criam backups adicionais.
 
 ### Documentos locais do projeto
 
@@ -134,10 +148,15 @@ git add ai/shared ai/CODEX_ORCHESTRATOR.md ai/SWIFT_REFERENCE.md
 git commit -m "chore: atualiza base compartilhada de IA"
 ```
 
-O `ai-update` atualiza o submodule para a versão mais recente de `main`, corrige
-links compartilhados quebrados e deixa o projeto consumidor pronto para revisão
-e commit. A atualização só passa a fazer parte do projeto depois que o novo
-ponteiro do submodule é commitado.
+O `ai-update` atualiza o submodule para a versão mais recente de `main`, valida
+os links compartilhados e deixa o projeto consumidor pronto para revisão e
+commit. Links quebrados ou destinos inesperados são recusados para recuperação
+manual segura. A atualização só passa a fazer parte do projeto depois que o
+novo ponteiro do submodule é commitado.
+
+`ai-update` não tenta escrever através do layout legado `ai -> .ai-project`.
+Quando encontrá-lo, interrompe com diagnóstico e orienta executar
+`ai-bootstrap`, que preserva `.ai-project` antes da atualização.
 
 Para reproduzir um checkout existente com a dependência, use:
 
@@ -174,6 +193,11 @@ subagentes Manager e Developer. O comando `install-bootstrap.sh` cria links
 globais em `~/.codex/agents` para esses arquivos, permitindo que o Codex os
 encontre sem cópia manual. Esses links são uma instalação local e apontam para
 a cópia da base AI usada durante a instalação.
+
+O bootstrap configura o projeto antes de instalar os agentes globais. Se a
+instalação global falhar, a mensagem informa que o projeto já está configurado
+e que os agentes permanecem pendentes; corrija o diretório indicado e execute o
+bootstrap novamente.
 
 O remote oficial desta base é:
 
