@@ -766,7 +766,9 @@ test_legacy_broken_relative_link_is_rejected() {
 
 test_manager_configuration() {
   assert_contains "$SCRIPT_ROOT/ai/agents/Manager.toml" 'model = "gpt-5.6-sol"'
-  assert_contains "$SCRIPT_ROOT/ai/agents/Manager.toml" 'model_reasoning_effort = "high"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/Manager.toml" 'model_reasoning_effort = "medium"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/Developer.toml" 'model = "gpt-6-astra"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/Developer.toml" 'model_reasoning_effort = "low"'
 }
 
 setup_remote
