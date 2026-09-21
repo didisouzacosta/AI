@@ -17,8 +17,8 @@ AI/
     ├── PROJECT_BRIEF.template.md
     ├── PROJECT_GUIDE.template.md
     ├── agents/
-    │   ├── Manager.toml
-    │   └── Developer.toml
+    │   ├── ai_manager.toml
+    │   └── ai_developer.toml
     └── skills/
         ├── README.md
         └── <skills compartilhadas>
@@ -74,11 +74,33 @@ O instalador cria `~/.local/bin` quando necessário e instala dois comandos:
 - `ai-bootstrap`: configura um projeto consumidor novo ou existente;
 - `ai-update`: atualiza a dependência de um projeto já configurado.
 
-Ele também cria links para `Manager.toml` e `Developer.toml` em
-`~/.codex/agents`, preservando cópias existentes em backup. O instalador
-registra `~/.local/bin` no `~/.zprofile` e no `~/.zshrc` sem duplicar entradas.
+O instalador cria somente os comandos `ai-bootstrap` e `ai-update` em
+`~/.local/bin`. Ele registra esse diretório no `~/.zprofile` e no `~/.zshrc`
+sem duplicar entradas. Os agentes globais são instalados separadamente por
+`scripts/install-agents.sh` ou automaticamente pelo `ai-bootstrap` depois que
+o setup do consumidor termina com sucesso.
 
 Ao terminar, feche e abra o terminal para carregar o novo `PATH`.
+
+### Instalação dos agentes globais
+
+Para instalar ou atualizar somente os agentes desta cópia da base, execute:
+
+```bash
+/caminho/para/AI/scripts/install-agents.sh
+```
+
+O instalador cria links em `~/.codex/agents/ai_manager.toml` e
+`~/.codex/agents/ai_developer.toml` para as fontes versionadas. A variável
+`CODEX_CONFIG_DIR` pode apontar para outro diretório de configuração, por
+exemplo em testes isolados.
+
+Links antigos `Manager.toml` e `Developer.toml` só são arquivados quando seus
+destinos normalizados apontam para os TOML antigos desta mesma cópia da base,
+inclusive quando o link está quebrado. Links e arquivos de terceiros com esses
+nomes são preservados. Conflitos nos novos destinos são movidos para um
+diretório exclusivo em `~/.codex/agent-migration-backups/`; pastas de backup
+anteriores não são reutilizadas nem apagadas.
 
 ### Configuração de um projeto
 
@@ -188,16 +210,21 @@ deve declarar explicitamente a exceção e seu escopo.
 
 ## Agentes e links compartilhados
 
-Os arquivos em `ai/agents/` são a fonte versionada das definições técnicas dos
-subagentes Manager e Developer. O comando `install-bootstrap.sh` cria links
-globais em `~/.codex/agents` para esses arquivos, permitindo que o Codex os
-encontre sem cópia manual. Esses links são uma instalação local e apontam para
-a cópia da base AI usada durante a instalação.
+Os arquivos `ai/agents/ai_manager.toml` e `ai/agents/ai_developer.toml` são a
+fonte versionada dos agentes personalizados. Os identificadores de despacho
+são `ai_manager` e `ai_developer`; Manager e Developer permanecem como papéis
+conceituais do fluxo. `scripts/install-bootstrap.sh` instala somente os
+comandos e o PATH. `scripts/install-agents.sh` cria os links globais em
+`~/.codex/agents`, apontando para a cópia da base usada na instalação.
 
-O bootstrap configura o projeto antes de instalar os agentes globais. Se a
-instalação global falhar, a mensagem informa que o projeto já está configurado
-e que os agentes permanecem pendentes; corrija o diretório indicado e execute o
-bootstrap novamente.
+O `ai-bootstrap` configura o projeto antes de instalar os agentes globais. Se
+a instalação global falhar, a mensagem informa que o projeto já está
+configurado e que os agentes permanecem pendentes; corrija o diretório indicado
+e execute `scripts/install-agents.sh` ou o bootstrap novamente. A instalação
+disponibiliza as definições; ela não comprova, por si só, qual modelo e esforço
+o runtime aplicou. Quando esses valores forem observáveis, compare-os com os
+TOML e bloqueie uma delegação divergente; se não forem expostos, registre a
+limitação.
 
 O remote oficial desta base é:
 

@@ -771,7 +771,7 @@ update_submodule() {
 
 validate_required_shared_files() {
   local required_file=""
-  for required_file in AGENTS.md ai/CODEX_ORCHESTRATOR.md ai/SWIFT_REFERENCE.md ai/agents/Manager.toml ai/agents/Developer.toml; do
+  for required_file in AGENTS.md ai/CODEX_ORCHESTRATOR.md ai/SWIFT_REFERENCE.md ai/agents/ai_manager.toml ai/agents/ai_developer.toml; do
     [[ -f "$shared_path/$required_file" ]] || die "a dependência não contém '$required_file'."
   done
 }

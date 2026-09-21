@@ -21,9 +21,10 @@ projetos consumidores; a ausência deles neste repositório é intencional.
 
 - [`ai/CODEX_ORCHESTRATOR.md`](./ai/CODEX_ORCHESTRATOR.md) é o contrato operacional compartilhado que governa a criação, a passagem de contexto, os estados, a revisão e os critérios de aprovação dos subagentes. Consulte-o antes de iniciar qualquer alteração de comportamento em um projeto consumidor e siga o ciclo Manager → Developer → Manager quando os agentes nativos estiverem disponíveis.
 - Subagentes são agentes nativos do Codex executados pelo agente principal para assumir um papel delimitado da tarefa. Eles não são apenas nomes alternativos para modelos: recebem escopo, entradas, critérios e permissões próprias, devolvem resultados ao agente principal e não iniciam outro workflow nem delegam recursivamente.
-- Para alterações de comportamento, o agente principal deve criar os subagentes nativos `Manager` e `Developer`, definidos pelas configurações compartilhadas em `ai/agents/`. Antes da implementação, registre o estado inicial e entregue o pedido original ao Manager para planejamento; depois encaminhe o plano READY ao Developer. Cada agente deve receber escopo, entradas e critérios claros.
-- O subagente `Manager` exerce dois papéis somente leitura: prepara o plano e realiza a revisão final da implementação contra o pedido, o plano, os critérios de aceite e o diff.
-- O subagente `Developer` recebe o plano completo do Manager, implementa, testa e corrige os apontamentos. Os identificadores técnicos dos agentes ficam restritos às configurações compartilhadas e não fazem parte do contrato operacional desta documentação.
+- Para alterações de comportamento, o agente principal deve criar os agentes personalizados `ai_manager` e `ai_developer`, definidos pelas configurações compartilhadas em `ai/agents/`. `Manager` e `Developer` são os papéis conceituais, não os identificadores de despacho. Antes da implementação, registre o estado inicial e entregue o pedido original a `ai_manager` para planejamento; depois encaminhe o plano READY a `ai_developer`. Cada agente deve receber escopo, entradas e critérios claros.
+- O agente `ai_manager`, no papel conceitual Manager, exerce dois papéis somente leitura: prepara o plano e realiza a revisão final da implementação contra o pedido, o plano, os critérios de aceite e o diff.
+- O agente `ai_developer`, no papel conceitual Developer, recebe o plano completo de `ai_manager`, implementa, testa e corrige os apontamentos.
+- Antes de aceitar cada delegação, confira se o modelo e o esforço de raciocínio observáveis no runtime correspondem ao TOML selecionado. Se houver divergência observável, não aceite a etapa e informe o principal. Se a ferramenta não expuser esses valores, declare a limitação; não afirme que o TOML foi aplicado nem que a correspondência foi verificada.
 - O plano do Manager deve entregar ao Developer, de forma executável e sem lacunas conhecidas: requisitos funcionais e não funcionais, escopo e não escopo, arquivos e contratos afetados, abordagem e frameworks/APIs atuais compatíveis com o projeto, skills aplicáveis, riscos, estratégia TDD/validação e critérios objetivos de aceite. O Developer não deve reabrir decisões já resolvidas no plano sem registrar a razão.
 - O fluxo é obrigatório: Manager analisa → Developer implementa e valida → Manager revisa → Developer corrige, se necessário → Manager revisa novamente até `APPROVED` ou o limite definido pelo orquestrador. `CHANGES_REQUESTED`, validação obrigatória pendente, saída inválida ou mudança concorrente impede a conclusão.
 - O agente principal aguarda cada etapa, encaminha correções e solicita uma nova revisão do Manager, sem editar enquanto a revisão está em andamento. Se a ferramenta não disponibilizar os agentes nativos, informe a limitação; não simule sua criação por nomes em prompts. Não crie tarefas independentes na interface para substituir subagentes.
@@ -52,9 +53,9 @@ configurações compartilhadas. O agente principal não deve tratar esta seção
 como um workflow alternativo: a coordenação operacional pertence ao
 [`CODEX_ORCHESTRATOR.md`](./ai/CODEX_ORCHESTRATOR.md).
 
-- Planejamento: `Manager`, somente leitura.
-- Implementação e correções: `Developer`.
-- Revisões: `Manager`, somente leitura.
+- Planejamento: `ai_manager` (papel conceitual Manager), somente leitura.
+- Implementação e correções: `ai_developer` (papel conceitual Developer).
+- Revisões: `ai_manager` (papel conceitual Manager), somente leitura.
 
 O ciclo obrigatório é definido e detalhado pelo orquestrador: Manager planeja →
 Developer implementa e valida → Manager revisa → Developer corrige, se

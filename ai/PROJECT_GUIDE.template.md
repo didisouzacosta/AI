@@ -29,12 +29,15 @@ escopo explícito.
 Use os papéis definidos no `AGENTS.md` e detalhados no
 `ai/CODEX_ORCHESTRATOR.md`:
 
-- Planejamento: Manager, somente leitura.
-- Implementação e correções: Developer.
-- Revisão: Manager, somente leitura.
+- Planejamento: `ai_manager` (papel conceitual Manager), somente leitura.
+- Implementação e correções: `ai_developer` (papel conceitual Developer).
+- Revisão: `ai_manager` (papel conceitual Manager), somente leitura.
 
 O ciclo é Manager planeja → Developer implementa e valida → Manager revisa →
 Developer corrige → Manager revisa novamente até resolver todos os apontamentos.
+Os IDs técnicos vêm do campo `name` dos TOML compartilhados. Confira os valores
+de modelo e esforço que o runtime expõe contra esses TOML; bloqueie se forem
+divergentes e declare a limitação quando a ferramenta não expuser esses dados.
 
 ## Arquitetura
 

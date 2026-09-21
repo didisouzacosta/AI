@@ -84,6 +84,16 @@ run_bootstrap() {
   (cd "$path" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" CODEX_CONFIG_DIR="$TEST_ROOT/codex config" bash "$SCRIPT_ROOT/scripts/bootstrap-consumer.sh" "$@") >"$TEST_ROOT/last.out" 2>&1
 }
 
+run_agent_install() {
+  CODEX_CONFIG_DIR="$TEST_ROOT/codex config" bash "$SCRIPT_ROOT/scripts/install-agents.sh" >"$TEST_ROOT/last.out" 2>&1
+}
+
+run_agent_install_at() {
+  local config_dir="$1"
+  shift
+  CODEX_CONFIG_DIR="$config_dir" "$SCRIPT_ROOT/scripts/install-agents.sh" "$@" >"$TEST_ROOT/last.out" 2>&1
+}
+
 run_update() {
   local path="$1"
   (cd "$path" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" bash "$SCRIPT_ROOT/scripts/update-consumer.sh") >"$TEST_ROOT/last.out" 2>&1
@@ -104,8 +114,8 @@ setup_remote() {
   printf '%s\n' '# AGENTS compartilhado' > "$SEED_ROOT/AGENTS.md"
   printf '%s\n' '# Orquestrador compartilhado' > "$SEED_ROOT/ai/CODEX_ORCHESTRATOR.md"
   printf '%s\n' '# Referência Swift' > "$SEED_ROOT/ai/SWIFT_REFERENCE.md"
-  printf '%s\n' 'manager' > "$SEED_ROOT/ai/agents/Manager.toml"
-  printf '%s\n' 'developer' > "$SEED_ROOT/ai/agents/Developer.toml"
+  printf '%s\n' 'manager' > "$SEED_ROOT/ai/agents/ai_manager.toml"
+  printf '%s\n' 'developer' > "$SEED_ROOT/ai/agents/ai_developer.toml"
   printf '%s\n' '# skills' > "$SEED_ROOT/ai/skills/README.md"
   printf '%s\n' '# brief' > "$SEED_ROOT/ai/PROJECT_BRIEF.template.md"
   printf '%s\n' '# guide' > "$SEED_ROOT/ai/PROJECT_GUIDE.template.md"
@@ -248,9 +258,16 @@ test_missing_documents_are_created() {
 
 test_known_legacy_root_link_is_replaced() {
   local path="$TEST_ROOT/known root link"
+  local fake_home="$TEST_ROOT/known root home"
   make_consumer "$path"
-  ln -s "${HOME}/.codex/AGENTS.md" "$path/AGENTS.md"
-  run_setup "$path" || fail 'link legado conhecido de AGENTS.md deveria ser substituído'
+  mkdir -p "$fake_home/.codex"
+  fake_home="$(cd -P -- "$fake_home" && pwd -P)"
+  printf '%s\n' 'legacy global instructions' > "$fake_home/.codex/AGENTS.md"
+  ln -s "$fake_home/.codex/AGENTS.md" "$path/AGENTS.md"
+  if ! (cd "$path" && HOME="$fake_home" GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" bash "$SCRIPT_ROOT/scripts/setup-consumer.sh") >"$TEST_ROOT/last.out" 2>&1; then
+    cat "$TEST_ROOT/last.out" >&2
+    fail 'link legado conhecido de AGENTS.md deveria ser substituído'
+  fi
   assert_symlink_target "$path/AGENTS.md" 'ai/shared/AGENTS.md'
 }
 
@@ -552,72 +569,266 @@ test_update_existing_submodule() {
   assert_canonical_links "$path"
 }
 
-test_bootstrap_configures_before_pending_agents() {
+test_agent_install_creates_canonical_links_and_is_idempotent() {
+  local config_dir="$TEST_ROOT/codex config"
+  local manager="$config_dir/agents/ai_manager.toml"
+  local developer="$config_dir/agents/ai_developer.toml"
+
+  if ! run_agent_install_at "$config_dir"; then
+    cat "$TEST_ROOT/last.out" >&2
+    fail 'instalação limpa dos agents falhou'
+    return
+  fi
+  assert_symlink_target "$manager" "$SCRIPT_ROOT/ai/agents/ai_manager.toml"
+  assert_symlink_target "$developer" "$SCRIPT_ROOT/ai/agents/ai_developer.toml"
+  assert_not_exists "$config_dir/agent-migration-backups"
+
+  rm "$manager"
+  ln -s "$SCRIPT_ROOT/ai/agents/../agents/ai_manager.toml" "$manager"
+  if ! run_agent_install_at "$config_dir"; then
+    cat "$TEST_ROOT/last.out" >&2
+    fail 'instalação repetida dos agents falhou'
+    return
+  fi
+  assert_symlink_target "$manager" "$SCRIPT_ROOT/ai/agents/../agents/ai_manager.toml"
+  assert_symlink_target "$developer" "$SCRIPT_ROOT/ai/agents/ai_developer.toml"
+  assert_not_exists "$config_dir/agent-migration-backups"
+}
+
+test_agent_install_archives_only_legacy_links_owned_by_this_base() {
+  local config_dir="$TEST_ROOT/codex legacy agents"
+  local agents="$config_dir/agents"
+  local backup_dir=""
+
+  mkdir -p "$agents"
+  ln -s "$SCRIPT_ROOT/ai/agents/Manager.toml" "$agents/Manager.toml"
+  ln -s "$SCRIPT_ROOT/ai/agents/Developer.toml" "$agents/Developer.toml"
+  if ! run_agent_install_at "$config_dir"; then
+    cat "$TEST_ROOT/last.out" >&2
+    fail 'migração dos links legados próprios falhou'
+    return
+  fi
+  assert_symlink_target "$agents/ai_manager.toml" "$SCRIPT_ROOT/ai/agents/ai_manager.toml"
+  assert_symlink_target "$agents/ai_developer.toml" "$SCRIPT_ROOT/ai/agents/ai_developer.toml"
+  assert_not_exists "$agents/Manager.toml"
+  assert_not_exists "$agents/Developer.toml"
+  backup_dir="$(find "$config_dir/agent-migration-backups" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+  [[ -n "$backup_dir" ]] || fail 'a migração legada deveria criar um backup exclusivo'
+  assert_symlink_target "$backup_dir/Manager.toml" "$SCRIPT_ROOT/ai/agents/Manager.toml"
+  assert_symlink_target "$backup_dir/Developer.toml" "$SCRIPT_ROOT/ai/agents/Developer.toml"
+
+  run_agent_install_at "$config_dir" || fail 'segunda execução após migração falhou'
+  [[ "$(find "$config_dir/agent-migration-backups" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" == '1' ]] || fail 'execução idempotente criou outro backup'
+}
+
+test_agent_install_preserves_real_and_external_legacy_destinations() {
+  local config_dir="$TEST_ROOT/codex third party"
+  local agents="$config_dir/agents"
+  local external="$TEST_ROOT/external agent.toml"
+
+  mkdir -p "$agents"
+  printf '%s\n' 'user manager' > "$agents/Manager.toml"
+  printf '%s\n' 'third party' > "$external"
+  ln -s "$external" "$agents/Developer.toml"
+  if ! run_agent_install_at "$config_dir"; then
+    cat "$TEST_ROOT/last.out" >&2
+    fail 'instalação com destinos legados de terceiros falhou'
+    return
+  fi
+  assert_file "$agents/Manager.toml"
+  assert_contains "$agents/Manager.toml" 'user manager'
+  assert_symlink_target "$agents/Developer.toml" "$external"
+  assert_symlink_target "$agents/ai_manager.toml" "$SCRIPT_ROOT/ai/agents/ai_manager.toml"
+  assert_symlink_target "$agents/ai_developer.toml" "$SCRIPT_ROOT/ai/agents/ai_developer.toml"
+  assert_not_exists "$config_dir/agent-migration-backups"
+}
+
+test_agent_install_backs_up_new_destination_conflicts() {
+  local config_dir="$TEST_ROOT/codex new conflict"
+  local agents="$config_dir/agents"
+  local backup_dir=""
+
+  mkdir -p "$agents"
+  printf '%s\n' 'user-owned' > "$agents/ai_manager.toml"
+  ln -s "$TEST_ROOT/missing external target" "$agents/ai_developer.toml"
+  if ! run_agent_install_at "$config_dir"; then
+    cat "$TEST_ROOT/last.out" >&2
+    fail 'conflitos dos novos destinos deveriam ser preservados em backup'
+    return
+  fi
+  assert_symlink_target "$agents/ai_manager.toml" "$SCRIPT_ROOT/ai/agents/ai_manager.toml"
+  assert_symlink_target "$agents/ai_developer.toml" "$SCRIPT_ROOT/ai/agents/ai_developer.toml"
+  backup_dir="$(find "$config_dir/agent-migration-backups" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+  [[ -n "$backup_dir" ]] || fail 'conflito deveria criar backup exclusivo'
+  assert_contains "$backup_dir/ai_manager.toml" 'user-owned'
+  assert_symlink_target "$backup_dir/ai_developer.toml" "$TEST_ROOT/missing external target"
+}
+
+test_agent_install_rejects_unsafe_backup_parent_without_mutation() {
+  local config_dir="$TEST_ROOT/codex unsafe backup"
+  local agents="$config_dir/agents"
+  local target="$TEST_ROOT/outside backups"
+
+  mkdir -p "$agents" "$target"
+  printf '%s\n' 'preserve' > "$agents/ai_manager.toml"
+  ln -s "$target" "$config_dir/agent-migration-backups"
+  if run_agent_install_at "$config_dir"; then
+    fail 'symlink no diretório pai do backup deveria ser recusado'
+  fi
+  assert_contains "$TEST_ROOT/last.out" 'backup'
+  assert_contains "$agents/ai_manager.toml" 'preserve'
+  assert_not_exists "$agents/ai_developer.toml"
+  [[ -z "$(find "$target" -mindepth 1 -print -quit)" ]] || fail 'diretório externo de backup foi alterado'
+
+  config_dir="$TEST_ROOT/codex regular backup conflict"
+  agents="$config_dir/agents"
+  mkdir -p "$agents"
+  printf '%s\n' 'preserve regular conflict' > "$agents/ai_manager.toml"
+  printf '%s\n' 'backup blocker' > "$config_dir/agent-migration-backups"
+  if run_agent_install_at "$config_dir"; then
+    fail 'arquivo regular no caminho pai de backup deveria ser recusado'
+  fi
+  assert_contains "$TEST_ROOT/last.out" 'backup'
+  assert_contains "$agents/ai_manager.toml" 'preserve regular conflict'
+  assert_not_exists "$agents/ai_developer.toml"
+}
+
+test_agent_install_reports_backup_and_link_failures_without_losing_recovery() {
+  local config_dir="$TEST_ROOT/codex install failure"
+  local agents="$config_dir/agents"
+  local fake_bin="$TEST_ROOT/fake install tools"
+
+  mkdir -p "$agents" "$fake_bin"
+  printf '%s\n' 'user-owned' > "$agents/ai_manager.toml"
+  cat > "$fake_bin/mv" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == *"/codex install failure/agents/"* ]]; then
+  echo 'falha injetada ao mover conflito' >&2
+  exit 43
+fi
+exec /bin/mv "$@"
+EOF
+  chmod 755 "$fake_bin/mv"
+  if PATH="$fake_bin:$PATH" run_agent_install_at "$config_dir"; then
+    fail 'falha de mv deveria retornar erro'
+  fi
+  assert_contains "$TEST_ROOT/last.out" 'falha injetada ao mover conflito'
+  assert_contains "$agents/ai_manager.toml" 'user-owned'
+  assert_not_exists "$agents/ai_developer.toml"
+
+  rm "$fake_bin/mv"
+  cat > "$fake_bin/ln" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${3:-}" == *"/agents/ai_developer.toml" ]]; then
+  echo 'falha injetada ao criar link novo' >&2
+  exit 42
+fi
+exec /bin/ln "$@"
+EOF
+  chmod 755 "$fake_bin/ln"
+  if PATH="$fake_bin:$PATH" run_agent_install_at "$config_dir"; then
+    fail 'falha de ln deveria retornar erro'
+  fi
+  assert_contains "$TEST_ROOT/last.out" 'falha injetada ao criar link novo'
+  assert_symlink_target "$agents/ai_manager.toml" "$SCRIPT_ROOT/ai/agents/ai_manager.toml"
+  assert_not_exists "$agents/ai_developer.toml"
+  [[ -f "$(find "$config_dir/agent-migration-backups" -path '*/ai_manager.toml' -type f -print -quit)" ]] || fail 'conflito movido antes da falha não foi preservado no backup'
+}
+
+test_agent_install_handles_directory_and_exclusive_backup_creation_failures() {
+  local config_dir="$TEST_ROOT/codex mkdir failure"
+  local fake_bin="$TEST_ROOT/fake mkdir bin"
+
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/mkdir" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == *"$config_dir/agents"* ]]; then
+  echo 'falha injetada ao criar agents/' >&2
+  exit 41
+fi
+exec /bin/mkdir "\$@"
+EOF
+  chmod 755 "$fake_bin/mkdir"
+  if PATH="$fake_bin:$PATH" run_agent_install_at "$config_dir"; then
+    fail 'falha de mkdir do diretório agents deveria retornar erro'
+  fi
+  assert_contains "$TEST_ROOT/last.out" 'falha injetada ao criar agents/'
+  assert_not_exists "$config_dir"
+
+  config_dir="$TEST_ROOT/codex backup creation failure"
+  mkdir -p "$config_dir/agents"
+  printf '%s\n' 'keep until backup works' > "$config_dir/agents/ai_manager.toml"
+  cat > "$fake_bin/mktemp" <<'EOF'
+#!/usr/bin/env bash
+echo 'falha injetada ao criar backup exclusivo' >&2
+exit 44
+EOF
+  chmod 755 "$fake_bin/mktemp"
+  if PATH="$fake_bin:$PATH" run_agent_install_at "$config_dir"; then
+    fail 'falha do backup exclusivo deveria retornar erro'
+  fi
+  assert_contains "$TEST_ROOT/last.out" 'falha injetada ao criar backup exclusivo'
+  assert_contains "$config_dir/agents/ai_manager.toml" 'keep until backup works'
+  assert_not_exists "$config_dir/agents/ai_developer.toml"
+}
+
+test_agent_install_rejects_missing_sources_before_touching_config() {
+  local fake_root="$TEST_ROOT/missing agent sources"
+  local config_dir="$TEST_ROOT/codex missing source"
+  mkdir -p "$fake_root/scripts"
+  cp "$SCRIPT_ROOT/scripts/install-agents.sh" "$fake_root/scripts/install-agents.sh"
+  if CODEX_CONFIG_DIR="$config_dir" bash "$fake_root/scripts/install-agents.sh" >"$TEST_ROOT/last.out" 2>&1; then
+    fail 'install-agents deveria recusar fontes ausentes'
+  fi
+  assert_contains "$TEST_ROOT/last.out" 'fontes'
+  assert_not_exists "$config_dir"
+}
+
+test_bootstrap_installs_agents_only_after_successful_consumer_setup() {
   local path="$TEST_ROOT/bootstrap order"
+  local config_dir="$TEST_ROOT/codex bootstrap order"
   make_consumer "$path"
-  printf '%s\n' blocker > "$TEST_ROOT/codex blocker"
-  if (cd "$path" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" CODEX_CONFIG_DIR="$TEST_ROOT/codex blocker" bash "$SCRIPT_ROOT/scripts/bootstrap-consumer.sh") >"$TEST_ROOT/last.out" 2>&1; then
-    fail 'bootstrap deveria sinalizar agentes pendentes quando a configuração global é inválida'
+  if ! (cd "$path" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" CODEX_CONFIG_DIR="$config_dir" bash "$SCRIPT_ROOT/scripts/bootstrap-consumer.sh") >"$TEST_ROOT/last.out" 2>&1; then
+    cat "$TEST_ROOT/last.out" >&2
+    fail 'bootstrap deveria configurar consumidor e instalar agentes'
+    return
   fi
   assert_directory "$path/ai"
   assert_directory "$path/ai/shared"
-  assert_contains "$TEST_ROOT/last.out" 'projeto está configurado'
-  assert_contains "$TEST_ROOT/last.out" 'não foi possível criar o diretório de agentes'
+  assert_symlink_target "$config_dir/agents/ai_manager.toml" "$SCRIPT_ROOT/ai/agents/ai_manager.toml"
+  assert_symlink_target "$config_dir/agents/ai_developer.toml" "$SCRIPT_ROOT/ai/agents/ai_developer.toml"
+
+  path="$TEST_ROOT/bootstrap setup failure"
+  config_dir="$TEST_ROOT/codex setup failure"
+  make_consumer "$path"
+  printf '%s\n' '[submodule "broken"' > "$path/.gitmodules"
+  if (cd "$path" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" CODEX_CONFIG_DIR="$config_dir" bash "$SCRIPT_ROOT/scripts/bootstrap-consumer.sh") >"$TEST_ROOT/last.out" 2>&1; then
+    fail 'bootstrap deveria falhar quando o setup do consumidor falha'
+  fi
+  assert_not_exists "$config_dir"
 }
 
-test_bootstrap_propagates_agent_link_failures() {
+test_bootstrap_propagates_agent_install_failures() {
   local path="$TEST_ROOT/bootstrap agent failure"
-  local fake_bin="$TEST_ROOT/fake-bin"
+  local config_dir="$TEST_ROOT/codex bootstrap failure"
+  local fake_bin="$TEST_ROOT/fake bootstrap bin"
   make_consumer "$path"
   mkdir -p "$fake_bin"
   cat > "$fake_bin/ln" <<'EOF'
 #!/usr/bin/env bash
-if [[ "${3:-}" == *"/codex failure/agents/"* ]]; then
+if [[ "${3:-}" == *"/agents/ai_manager.toml" ]]; then
   echo 'falha injetada ao criar link de agente' >&2
   exit 42
 fi
 exec /bin/ln "$@"
 EOF
   chmod 755 "$fake_bin/ln"
-  if (cd "$path" && PATH="$fake_bin:$PATH" GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" CODEX_CONFIG_DIR="$TEST_ROOT/codex failure" bash "$SCRIPT_ROOT/scripts/bootstrap-consumer.sh") >"$TEST_ROOT/last.out" 2>&1; then
-    fail 'bootstrap deveria retornar erro quando a criação de link de agente falha'
+  if (cd "$path" && PATH="$fake_bin:$PATH" GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" CODEX_CONFIG_DIR="$config_dir" bash "$SCRIPT_ROOT/scripts/bootstrap-consumer.sh") >"$TEST_ROOT/last.out" 2>&1; then
+    fail 'bootstrap deveria retornar erro quando instalação dos agentes falha'
   fi
   assert_contains "$TEST_ROOT/last.out" 'agentes globais pendentes'
   assert_contains "$TEST_ROOT/last.out" 'falha injetada ao criar link de agente'
-}
-
-test_bootstrap_propagates_agent_backup_and_move_failures() {
-  local backup_path="$TEST_ROOT/bootstrap backup failure"
-  local move_path="$TEST_ROOT/bootstrap move failure"
-  local fake_bin="$TEST_ROOT/fake-mv-bin"
-  make_consumer "$backup_path"
-  mkdir -p "$TEST_ROOT/codex backup failure/agents"
-  printf '%s\n' 'old manager' > "$TEST_ROOT/codex backup failure/agents/Manager.toml"
-  printf '%s\n' 'blocker' > "$TEST_ROOT/codex backup failure/agents/.ai-base-migration-backup"
-  if (cd "$backup_path" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" CODEX_CONFIG_DIR="$TEST_ROOT/codex backup failure" bash "$SCRIPT_ROOT/scripts/bootstrap-consumer.sh") >"$TEST_ROOT/last.out" 2>&1; then
-    fail 'bootstrap deveria retornar erro quando a criação do backup falha'
-  fi
-  assert_contains "$TEST_ROOT/last.out" 'não foi possível criar o backup dos subagents'
-  assert_contains "$TEST_ROOT/last.out" 'agentes globais pendentes'
-
-  make_consumer "$move_path"
-  mkdir -p "$fake_bin" "$TEST_ROOT/codex move failure/agents"
-  printf '%s\n' 'old manager' > "$TEST_ROOT/codex move failure/agents/Manager.toml"
-  cat > "$fake_bin/mv" <<'EOF'
-#!/usr/bin/env bash
-if [[ "${1:-}" == *"/codex move failure/agents/"* ]]; then
-  echo 'falha injetada ao mover backup de agente' >&2
-  exit 43
-fi
-exec /bin/mv "$@"
-EOF
-  chmod 755 "$fake_bin/mv"
-  if (cd "$move_path" && PATH="$fake_bin:$PATH" GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE_ROOT" CODEX_CONFIG_DIR="$TEST_ROOT/codex move failure" bash "$SCRIPT_ROOT/scripts/bootstrap-consumer.sh") >"$TEST_ROOT/last.out" 2>&1; then
-    fail 'bootstrap deveria retornar erro quando a movimentação do backup falha'
-  fi
-  assert_contains "$TEST_ROOT/last.out" 'falha injetada ao mover backup de agente'
-  assert_contains "$TEST_ROOT/last.out" 'não foi possível mover'
-  assert_contains "$TEST_ROOT/last.out" 'agentes globais pendentes'
+  assert_directory "$path/ai/shared"
 }
 
 test_invalid_gitmodules_aborts_before_mutation() {
@@ -765,10 +976,14 @@ test_legacy_broken_relative_link_is_rejected() {
 }
 
 test_agent_configuration() {
-  assert_contains "$SCRIPT_ROOT/ai/agents/Manager.toml" 'model = "gpt-5.6-sol"'
-  assert_contains "$SCRIPT_ROOT/ai/agents/Manager.toml" 'model_reasoning_effort = "medium"'
-  assert_contains "$SCRIPT_ROOT/ai/agents/Developer.toml" 'model = "gpt-5.6-terra"'
-  assert_contains "$SCRIPT_ROOT/ai/agents/Developer.toml" 'model_reasoning_effort = "medium"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/ai_manager.toml" 'name = "ai_manager"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/ai_manager.toml" 'model = "gpt-5.6-sol"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/ai_manager.toml" 'model_reasoning_effort = "medium"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/ai_manager.toml" 'sandbox_mode = "read-only"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/ai_developer.toml" 'name = "ai_developer"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/ai_developer.toml" 'model = "gpt-5.6-terra"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/ai_developer.toml" 'model_reasoning_effort = "medium"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/ai_developer.toml" 'sandbox_mode = "workspace-write"'
 }
 
 setup_remote
@@ -791,9 +1006,16 @@ test_rejects_missing_worktree_gitmodules_with_staged_entry_before_migration
 test_rejects_untracked_external_gitmodules_before_migration
 test_update_diagnoses_legacy_layout
 test_update_existing_submodule
-test_bootstrap_configures_before_pending_agents
-test_bootstrap_propagates_agent_link_failures
-test_bootstrap_propagates_agent_backup_and_move_failures
+test_agent_install_creates_canonical_links_and_is_idempotent
+test_agent_install_archives_only_legacy_links_owned_by_this_base
+test_agent_install_preserves_real_and_external_legacy_destinations
+test_agent_install_backs_up_new_destination_conflicts
+test_agent_install_rejects_unsafe_backup_parent_without_mutation
+test_agent_install_reports_backup_and_link_failures_without_losing_recovery
+test_agent_install_handles_directory_and_exclusive_backup_creation_failures
+test_agent_install_rejects_missing_sources_before_touching_config
+test_bootstrap_installs_agents_only_after_successful_consumer_setup
+test_bootstrap_propagates_agent_install_failures
 test_invalid_gitmodules_aborts_before_mutation
 test_invalid_existing_submodule_aborts_before_mutation
 test_fetch_recurse_submodules_metadata_is_normalized

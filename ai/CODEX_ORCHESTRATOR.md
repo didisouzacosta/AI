@@ -4,18 +4,32 @@
 
 O agente principal deve usar os agentes personalizados nativos do Codex:
 
-| Papel | Definição global (link simbólico) | Responsabilidade |
-| --- | --- | --- |
-| `Manager` | `~/.codex/agents/Manager.toml` | Planejamento e revisão, somente leitura |
-| `Developer` | `~/.codex/agents/Developer.toml` | Implementação e validação |
+| Papel conceitual | Identificador de despacho (`name`) | Fonte versionada | Link global | Responsabilidade |
+| --- | --- | --- | --- | --- |
+| `Manager` | `ai_manager` | `ai/agents/ai_manager.toml` | `~/.codex/agents/ai_manager.toml` | Planejamento e revisão, somente leitura |
+| `Developer` | `ai_developer` | `ai/agents/ai_developer.toml` | `~/.codex/agents/ai_developer.toml` | Implementação e validação |
 
-As fontes técnicas são `ai/agents/Manager.toml` e `ai/agents/Developer.toml` na cópia
-local desta base. Edite as fontes versionadas e preserve os links globais quando
-a instalação local os utilizar. Os nomes dos arquivos são detalhes internos;
-o contrato operacional usa os papéis `Manager` e `Developer`.
+Os identificadores técnicos usados para iniciar os agentes são `ai_manager` e
+`ai_developer`; `Manager` e `Developer` continuam sendo os papéis conceituais
+do fluxo. O campo `name` dos TOML é a identidade definitiva. Edite as fontes
+versionadas e preserve os links globais quando a instalação local os utilizar.
 
-O agente principal deve iniciar a delegação para tarefas que alterem comportamento.
-A instalação dos TOML disponibiliza os agentes; a coordenação depende das
+`scripts/install-agents.sh` instala ou atualiza os links. Conflitos nos nomes
+novos são preservados em diretórios exclusivos fora de `agents/`. Os links
+legados `Manager.toml` e `Developer.toml` só são arquivados quando o destino
+normalizado corresponde à fonte antiga desta mesma cópia da base; arquivos e
+links de terceiros permanecem intactos.
+
+Antes de aceitar uma delegação, confira se o modelo e o esforço de raciocínio
+observáveis no runtime correspondem aos valores do TOML selecionado. Se houver
+divergência observável, bloqueie a etapa e informe o principal. Se a ferramenta
+não expuser modelo ou esforço, declare essa limitação e não afirme que o
+carregamento foi verificado. Os valores não devem ser passados como override no
+despacho: a fonte versionada do agente define modelo e esforço.
+
+O agente principal deve iniciar a delegação para tarefas que alterem comportamento,
+usando explicitamente `ai_manager` e `ai_developer` conforme o papel. A instalação
+dos TOML disponibiliza os agentes; a coordenação depende das
 instruções e das ferramentas da sessão. Se a ferramenta não expuser os agentes,
 informe a limitação. Reinicie a sessão após instalar ou atualizar as definições
 para verificar sua descoberta. Não substitua subagentes por tarefas independentes.
@@ -58,12 +72,12 @@ orientações genéricas das skills; conflitos devem ser registrados no plano.
 
 ## Ciclo e aprovação
 
-1. O principal registra o estado inicial e delega a análise ao Manager.
-2. Aguarda o plano READY e entrega ao Developer o pedido original, o plano completo,
+1. O principal registra o estado inicial e delega a análise a `ai_manager`.
+2. Aguarda o plano READY e entrega a `ai_developer` o pedido original, o plano completo,
    o escopo autorizado e o estado inicial.
 3. O Developer implementa, valida e entrega os arquivos alterados, os critérios atendidos,
    o bloco `SKILLS_STATUS`, os comandos executados, resultados e pendências.
-4. O principal cria uma nova sessão do Manager como Reviewer e fornece o pedido,
+4. O principal cria uma nova sessão de `ai_manager` no papel de Reviewer e fornece o pedido,
    plano, mudanças atribuíveis à tarefa e evidências.
 5. `CHANGES_REQUESTED` volta ao Developer com todos os apontamentos. Cada correção
    exige nova revisão do Manager. O limite padrão é três revisões.
@@ -94,8 +108,8 @@ Mantenha os seguintes links globais para a raiz compartilhada existente:
 | `~/.codex/AGENTS.md` | `AGENTS.md` |
 | `~/.codex/ai` | `ai/` |
 | `~/.codex/CODEX_ORCHESTRATOR.md` | `ai/CODEX_ORCHESTRATOR.md` |
-| `~/.codex/agents/Manager.toml` | `ai/agents/Manager.toml` |
-| `~/.codex/agents/Developer.toml` | `ai/agents/Developer.toml` |
+| `~/.codex/agents/ai_manager.toml` | `ai/agents/ai_manager.toml` |
+| `~/.codex/agents/ai_developer.toml` | `ai/agents/ai_developer.toml` |
 
 Nos projetos consumidores, prefira adicionar esta base como submodule em
 `ai/shared` e criar links para `AGENTS.md`, o orquestrador, a referência Swift,
@@ -110,5 +124,8 @@ Os históricos existentes em `.workflow-runs/` permanecem preservados como
 evidência de execuções anteriores. A configuração nativa não depende deles nem
 os atualiza automaticamente. Remova somente temporários exclusivos descartáveis,
 conforme as regras de limpeza de `AGENTS.md`.
+
+Instale os agentes com `scripts/install-agents.sh` ou por meio de `ai-bootstrap`,
+que chama esse instalador somente depois de configurar o projeto consumidor.
 
 Referência: [agentes personalizados do Codex](https://learn.chatgpt.com/docs/agent-configuration/subagents).
