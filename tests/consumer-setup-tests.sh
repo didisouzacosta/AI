@@ -764,11 +764,11 @@ test_legacy_broken_relative_link_is_rejected() {
   assert_not_exists "$path/.gitmodules"
 }
 
-test_manager_configuration() {
+test_agent_configuration() {
   assert_contains "$SCRIPT_ROOT/ai/agents/Manager.toml" 'model = "gpt-5.6-sol"'
   assert_contains "$SCRIPT_ROOT/ai/agents/Manager.toml" 'model_reasoning_effort = "medium"'
-  assert_contains "$SCRIPT_ROOT/ai/agents/Developer.toml" 'model = "gpt-6-astra"'
-  assert_contains "$SCRIPT_ROOT/ai/agents/Developer.toml" 'model_reasoning_effort = "low"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/Developer.toml" 'model = "gpt-5.6-terra"'
+  assert_contains "$SCRIPT_ROOT/ai/agents/Developer.toml" 'model_reasoning_effort = "medium"'
 }
 
 setup_remote
@@ -801,7 +801,7 @@ test_conflicting_backup_destination_aborts_before_legacy_migration
 test_legacy_copy_preserves_modes_with_restrictive_umask
 test_legacy_internal_relative_link_is_validated_in_original_context
 test_legacy_broken_relative_link_is_rejected
-test_manager_configuration
+test_agent_configuration
 
 if [[ "$failures" -ne 0 ]]; then
   echo "Testes falharam: $failures" >&2
