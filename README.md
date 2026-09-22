@@ -90,17 +90,17 @@ Para instalar ou atualizar somente os agentes desta cópia da base, execute:
 /caminho/para/AI/scripts/install-agents.sh
 ```
 
-O instalador cria links em `~/.codex/agents/ai_manager.toml` e
-`~/.codex/agents/ai_developer.toml` para as fontes versionadas. A variável
-`CODEX_CONFIG_DIR` pode apontar para outro diretório de configuração, por
-exemplo em testes isolados.
+O instalador publica cópias regulares em `~/.codex/agents/ai_manager.toml` e
+`~/.codex/agents/ai_developer.toml`, byte a byte idênticas às fontes
+versionadas. A variável `CODEX_CONFIG_DIR` pode apontar para outro diretório de
+configuração, por exemplo em testes isolados. Para sincronizar uma edição das
+fontes, execute novamente `scripts/install-agents.sh` ou `ai-bootstrap`.
 
-Links antigos `Manager.toml` e `Developer.toml` só são arquivados quando seus
-destinos normalizados apontam para os TOML antigos desta mesma cópia da base,
-inclusive quando o link está quebrado. Links e arquivos de terceiros com esses
-nomes são preservados. Conflitos nos novos destinos são movidos para um
-diretório exclusivo em `~/.codex/agent-migration-backups/`; pastas de backup
-anteriores não são reutilizadas nem apagadas.
+O instalador trata somente esses dois nomes canônicos. Ele não mantém
+compatibilidade, migração ou backups de agentes antigos; outros nomes em
+`agents/` permanecem intactos. Destinos canônicos que sejam links, diretórios
+ou tipos especiais são recusados para que uma limpeza local explicitamente
+autorizada resolva a configuração antes da instalação.
 
 ### Configuração de um projeto
 
@@ -208,14 +208,15 @@ git submodule update --init --recursive
 Quando houver conflito, o documento mais específico do projeto consumidor
 deve declarar explicitamente a exceção e seu escopo.
 
-## Agentes e links compartilhados
+## Agentes compartilhados
 
 Os arquivos `ai/agents/ai_manager.toml` e `ai/agents/ai_developer.toml` são a
 fonte versionada dos agentes personalizados. Os identificadores de despacho
 são `ai_manager` e `ai_developer`; Manager e Developer permanecem como papéis
 conceituais do fluxo. `scripts/install-bootstrap.sh` instala somente os
-comandos e o PATH. `scripts/install-agents.sh` cria os links globais em
-`~/.codex/agents`, apontando para a cópia da base usada na instalação.
+comandos e o PATH. `scripts/install-agents.sh` publica cópias regulares dos
+dois TOML em `~/.codex/agents`; execute-o novamente para sincronizar alterações
+das fontes versionadas.
 
 O `ai-bootstrap` configura o projeto antes de instalar os agentes globais. Se
 a instalação global falhar, a mensagem informa que o projeto já está

@@ -4,7 +4,7 @@
 
 O agente principal deve usar os agentes personalizados nativos do Codex:
 
-| Papel conceitual | Identificador de despacho (`name`) | Fonte versionada | Link global | Responsabilidade |
+| Papel conceitual | Identificador de despacho (`name`) | Fonte versionada | Cópia global | Responsabilidade |
 | --- | --- | --- | --- | --- |
 | `Manager` | `ai_manager` | `ai/agents/ai_manager.toml` | `~/.codex/agents/ai_manager.toml` | Planejamento e revisão, somente leitura |
 | `Developer` | `ai_developer` | `ai/agents/ai_developer.toml` | `~/.codex/agents/ai_developer.toml` | Implementação e validação |
@@ -12,13 +12,13 @@ O agente principal deve usar os agentes personalizados nativos do Codex:
 Os identificadores técnicos usados para iniciar os agentes são `ai_manager` e
 `ai_developer`; `Manager` e `Developer` continuam sendo os papéis conceituais
 do fluxo. O campo `name` dos TOML é a identidade definitiva. Edite as fontes
-versionadas e preserve os links globais quando a instalação local os utilizar.
+versionadas e execute novamente o instalador para publicar as cópias globais.
 
-`scripts/install-agents.sh` instala ou atualiza os links. Conflitos nos nomes
-novos são preservados em diretórios exclusivos fora de `agents/`. Os links
-legados `Manager.toml` e `Developer.toml` só são arquivados quando o destino
-normalizado corresponde à fonte antiga desta mesma cópia da base; arquivos e
-links de terceiros permanecem intactos.
+`scripts/install-agents.sh` instala ou atualiza cópias regulares byte a byte
+idênticas dos dois TOML canônicos. Ele não mantém compatibilidade, migração ou
+backup de agentes antigos e não altera outros nomes em `agents/`. Um destino
+canônico que seja link, diretório ou tipo especial é recusado até que a
+configuração local seja limpa sob autorização explícita.
 
 Antes de aceitar uma delegação, confira se o modelo e o esforço de raciocínio
 observáveis no runtime correspondem aos valores do TOML selecionado. Se houver
@@ -108,8 +108,6 @@ Mantenha os seguintes links globais para a raiz compartilhada existente:
 | `~/.codex/AGENTS.md` | `AGENTS.md` |
 | `~/.codex/ai` | `ai/` |
 | `~/.codex/CODEX_ORCHESTRATOR.md` | `ai/CODEX_ORCHESTRATOR.md` |
-| `~/.codex/agents/ai_manager.toml` | `ai/agents/ai_manager.toml` |
-| `~/.codex/agents/ai_developer.toml` | `ai/agents/ai_developer.toml` |
 
 Nos projetos consumidores, prefira adicionar esta base como submodule em
 `ai/shared` e criar links para `AGENTS.md`, o orquestrador, a referência Swift,
@@ -126,6 +124,8 @@ os atualiza automaticamente. Remova somente temporários exclusivos descartávei
 conforme as regras de limpeza de `AGENTS.md`.
 
 Instale os agentes com `scripts/install-agents.sh` ou por meio de `ai-bootstrap`,
-que chama esse instalador somente depois de configurar o projeto consumidor.
+que chama esse instalador somente depois de configurar o projeto consumidor. A
+instalação publica cópias regulares; reinstale para sincronizar uma edição dos
+TOML versionados.
 
 Referência: [agentes personalizados do Codex](https://learn.chatgpt.com/docs/agent-configuration/subagents).
