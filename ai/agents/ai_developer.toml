@@ -1,7 +1,7 @@
 name = "ai_developer"
 description = "Agente ai_developer no papel conceitual Developer: implementa o plano do Manager, executa validações e corrige os apontamentos de revisão."
-model = "gpt-5.6-terra"
-model_reasoning_effort = "medium"
+model = "gpt-6-luna"
+model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"
 
 developer_instructions = """

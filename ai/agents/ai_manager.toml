@@ -1,7 +1,7 @@
 name = "ai_manager"
 description = "Agente ai_manager no papel conceitual Manager: analisa requisitos, entrega um plano executável para o Developer e revisa os critérios de aceite após a implementação."
-model = "gpt-5.6-sol"
-model_reasoning_effort = "medium"
+model = "gpt-6-sol"
+model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
