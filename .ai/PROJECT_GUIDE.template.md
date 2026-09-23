@@ -68,6 +68,30 @@ dependências, navegação, persistência e integrações externas.
 - Mantenha segredos fora do repositório.
 - Preserve alterações locais não relacionadas.
 
+## Estilo e formatação Swift
+
+- Convenção geral: [Google Swift Style Guide](https://google.github.io/swift/),
+  aplicada a todo código Swift, incluindo arquivos sem SwiftUI e testes.
+- Cadeias de modificadores SwiftUI: cada modificador em sua própria linha,
+  conforme os exemplos da Apple em
+  [Configuring Views](https://developer.apple.com/documentation/swiftui/configuring-views).
+- Ferramentas e versões fixadas:
+- Comandos de lint e formatação usados localmente e no CI:
+- Exceções locais justificadas:
+
+## Previews SwiftUI
+
+- Toda `View` criada deve ter `#Preview` para cada estado de apresentação
+  suportado, incluindo os estados de carregamento, vazio, erro e sucesso quando
+  fizerem parte do contrato da tela.
+- Use `@Previewable` em cada propriedade dinâmica local necessária para
+  configurar esses estados dentro do corpo de `#Preview`. Esse macro só é
+  válido nesse corpo e não substitui a declaração dos previews para cada estado.
+- Injete dados e dependências determinísticos; não conecte previews a serviços
+  reais, rede, autenticação ou arquivos mutáveis do usuário.
+- Convenção confirmada com a documentação da Apple:
+  [Previewable](<https://developer.apple.com/documentation/swiftui/previewable()>).
+
 ## Testes e validação
 
 Registre comandos e resultados reais. Separe compilação e Simulator de
