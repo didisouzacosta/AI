@@ -18,7 +18,7 @@ Este documento é a referência estrutural e semântica para projetos Swift/Swif
 ## Plano operacional de uso das skills
 
 Skills são pacotes de instruções para orientar o modelo; sua presença em
-`ai/skills/` não significa que sejam lidas ou executadas automaticamente em
+`.agents/skills/` não significa que sejam lidas ou executadas automaticamente em
 toda tarefa. O modelo deve selecionar as skills pelo escopo real do pedido,
 ler integralmente o `SKILL.md` de cada skill aplicável antes do trabalho
 correspondente e registrar as decisões no plano e no relatório da execução.
@@ -27,13 +27,13 @@ correspondente e registrar as decisões no plano e no relatório da execução.
 
 | Escopo da tarefa | Skill | Aplicação |
 | --- | --- | --- |
-| Implementar, corrigir, revisar ou refatorar qualquer código Swift/SwiftUI | [`swiftui-expert-skill`](./skills/swiftui-expert-skill/SKILL.md) | Obrigatória |
-| Qualquer tarefa que leia, escreva ou altere Swift | [`swift-concurrency`](./skills/swift-concurrency/SKILL.md) | Obrigatória, inclusive no planejamento; confirme as configurações reais de concorrência |
-| Construir, alterar ou revisar telas, navegação, controles ou composição SwiftUI | [`swiftui-ui-patterns`](./skills/swiftui-ui-patterns/SKILL.md) | Obrigatória para o escopo de UI |
-| Construir ou revisar janelas, menus, commands, toolbars, Settings, split views ou inspectors de macOS | [`swiftui-patterns`](./skills/swiftui-patterns/SKILL.md) | Condicional à superfície macOS envolvida |
-| Refatorar estrutura de Views, ownership de estado ou composição | [`swiftui-view-refactor`](./skills/swiftui-view-refactor/SKILL.md) | Condicional à refatoração |
-| Adotar, revisar ou corrigir Liquid Glass | [`swiftui-liquid-glass`](./skills/swiftui-liquid-glass/SKILL.md) | Condicional ao uso solicitado ou existente; não implica redesign geral |
-| Construir, executar ou diagnosticar o app no iOS Simulator | [`ios-debugger-agent`](./skills/ios-debugger-agent/SKILL.md) | Condicional à validação no Simulator |
+| Implementar, corrigir, revisar ou refatorar qualquer código Swift/SwiftUI | [`swiftui-expert-skill`](../.agents/skills/swiftui-expert-skill/SKILL.md) | Obrigatória |
+| Qualquer tarefa que leia, escreva ou altere Swift | [`swift-concurrency`](../.agents/skills/swift-concurrency/SKILL.md) | Obrigatória, inclusive no planejamento; confirme as configurações reais de concorrência |
+| Construir, alterar ou revisar telas, navegação, controles ou composição SwiftUI | [`swiftui-ui-patterns`](../.agents/skills/swiftui-ui-patterns/SKILL.md) | Obrigatória para o escopo de UI |
+| Construir ou revisar janelas, menus, commands, toolbars, Settings, split views ou inspectors de macOS | [`swiftui-patterns`](../.agents/skills/swiftui-patterns/SKILL.md) | Condicional à superfície macOS envolvida |
+| Refatorar estrutura de Views, ownership de estado ou composição | [`swiftui-view-refactor`](../.agents/skills/swiftui-view-refactor/SKILL.md) | Condicional à refatoração |
+| Adotar, revisar ou corrigir Liquid Glass | [`swiftui-liquid-glass`](../.agents/skills/swiftui-liquid-glass/SKILL.md) | Condicional ao uso solicitado ou existente; não implica redesign geral |
+| Construir, executar ou diagnosticar o app no iOS Simulator | [`ios-debugger-agent`](../.agents/skills/ios-debugger-agent/SKILL.md) | Condicional à validação no Simulator |
 
 Não carregue uma skill condicional apenas por hábito. Quando ela não for
 aplicável, registre `SKIPPED` e o motivo. A descrição da skill é um gatilho de

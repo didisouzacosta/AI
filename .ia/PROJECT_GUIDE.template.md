@@ -27,11 +27,11 @@ escopo explícito.
 ## Coordenação dos subagentes
 
 Use os papéis definidos no `AGENTS.md` e detalhados no
-`ai/CODEX_ORCHESTRATOR.md`:
+`.ia/CODEX_ORCHESTRATOR.md`:
 
-- Planejamento: `ai_manager` (papel conceitual Manager), somente leitura.
-- Implementação e correções: `ai_developer` (papel conceitual Developer).
-- Revisão: `ai_manager` (papel conceitual Manager), somente leitura.
+- Planejamento: `sol` (papel conceitual Manager), somente leitura.
+- Implementação e correções: `luna` (papel conceitual Developer).
+- Revisão: `sol` (papel conceitual Manager), somente leitura.
 
 O ciclo é Manager planeja → Developer implementa e valida → Manager revisa →
 Developer corrige → Manager revisa novamente até resolver todos os apontamentos.

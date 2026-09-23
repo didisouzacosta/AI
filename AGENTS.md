@@ -11,19 +11,19 @@ projetos consumidores; a ausência deles neste repositório é intencional.
 
 ## Escopo e fontes
 
-- No projeto consumidor que adota estas regras, `ai/PROJECT_BRIEF.md` é a fonte da visão do produto, dos fluxos, dos estados e das pendências de validação daquele projeto. Nesta base, use [`ai/PROJECT_BRIEF.template.md`](./ai/PROJECT_BRIEF.template.md) somente como modelo.
-- No projeto consumidor que adota estas regras, `ai/PROJECT_GUIDE.md` registra a baseline, a arquitetura, os comandos e as validações específicas. Nesta base, use [`ai/PROJECT_GUIDE.template.md`](./ai/PROJECT_GUIDE.template.md) somente como modelo.
-- No checkout que adota estas regras, [SWIFT_REFERENCE.md](./ai/SWIFT_REFERENCE.md) é a referência normativa para toda estrutura, organização e escrita de código Swift/SwiftUI, inclusive testes. Consulte-a antes de criar ou reorganizar código.
+- No projeto consumidor que adota estas regras, `.ia/PROJECT_BRIEF.md` é a fonte da visão do produto, dos fluxos, dos estados e das pendências de validação daquele projeto. Nesta base, use [`.ia/PROJECT_BRIEF.template.md`](./.ia/PROJECT_BRIEF.template.md) somente como modelo.
+- No projeto consumidor que adota estas regras, `.ia/PROJECT_GUIDE.md` registra a baseline, a arquitetura, os comandos e as validações específicas. Nesta base, use [`.ia/PROJECT_GUIDE.template.md`](./.ia/PROJECT_GUIDE.template.md) somente como modelo.
+- No checkout que adota estas regras, [SWIFT_REFERENCE.md](./.ia/SWIFT_REFERENCE.md) é a referência normativa para toda estrutura, organização e escrita de código Swift/SwiftUI, inclusive testes. Consulte-a antes de criar ou reorganizar código.
 - O código e a configuração existentes continuam sendo a fonte do comportamento efetivamente conectado. Esta documentação não autoriza migração de nomes, pastas ou arquitetura fora do escopo solicitado; preserve o ambiente, as features e as convenções já conectadas.
 - Use a terminologia do brief e dos contratos existentes para modos, estados e recursos; não invente categorias de domínio para substituir os nomes do produto.
 
 ## Orquestração obrigatória de subagentes
 
-- [`ai/CODEX_ORCHESTRATOR.md`](./ai/CODEX_ORCHESTRATOR.md) é o contrato operacional compartilhado que governa a criação, a passagem de contexto, os estados, a revisão e os critérios de aprovação dos subagentes. Consulte-o antes de iniciar qualquer alteração de comportamento em um projeto consumidor e siga o ciclo Manager → Developer → Manager quando os agentes nativos estiverem disponíveis.
+- [`.ia/CODEX_ORCHESTRATOR.md`](./.ia/CODEX_ORCHESTRATOR.md) é o contrato operacional compartilhado que governa a criação, a passagem de contexto, os estados, a revisão e os critérios de aprovação dos subagentes. Consulte-o antes de iniciar qualquer alteração de comportamento em um projeto consumidor e siga o ciclo Manager → Developer → Manager quando os agentes nativos estiverem disponíveis.
 - Subagentes são agentes nativos do Codex executados pelo agente principal para assumir um papel delimitado da tarefa. Eles não são apenas nomes alternativos para modelos: recebem escopo, entradas, critérios e permissões próprias, devolvem resultados ao agente principal e não iniciam outro workflow nem delegam recursivamente.
-- Para alterações de comportamento, o agente principal deve criar os agentes personalizados `ai_manager` e `ai_developer`, definidos pelas configurações compartilhadas em `ai/agents/`. `Manager` e `Developer` são os papéis conceituais, não os identificadores de despacho. Antes da implementação, registre o estado inicial e entregue o pedido original a `ai_manager` para planejamento; depois encaminhe o plano READY a `ai_developer`. Cada agente deve receber escopo, entradas e critérios claros.
-- O agente `ai_manager`, no papel conceitual Manager, exerce dois papéis somente leitura: prepara o plano e realiza a revisão final da implementação contra o pedido, o plano, os critérios de aceite e o diff.
-- O agente `ai_developer`, no papel conceitual Developer, recebe o plano completo de `ai_manager`, implementa, testa e corrige os apontamentos.
+- Para alterações de comportamento, o agente principal deve criar os agentes personalizados `sol` e `luna`, definidos pelas configurações compartilhadas em `.codex/agents/`. `Manager` e `Developer` são os papéis conceituais, não os identificadores de despacho. Antes da implementação, registre o estado inicial e entregue o pedido original a `sol` para planejamento; depois encaminhe o plano READY a `luna`. Cada agente deve receber escopo, entradas e critérios claros.
+- O agente `sol`, no papel conceitual Manager, exerce dois papéis somente leitura: prepara o plano e realiza a revisão final da implementação contra o pedido, o plano, os critérios de aceite e o diff.
+- O agente `luna`, no papel conceitual Developer, recebe o plano completo de `sol`, implementa, testa e corrige os apontamentos.
 - Antes de aceitar cada delegação, confira se o modelo e o esforço de raciocínio observáveis no runtime correspondem ao TOML selecionado. Se houver divergência observável, não aceite a etapa e informe o principal. Se a ferramenta não expuser esses valores, declare a limitação; não afirme que o TOML foi aplicado nem que a correspondência foi verificada.
 - O plano do Manager deve entregar ao Developer, de forma executável e sem lacunas conhecidas: requisitos funcionais e não funcionais, escopo e não escopo, arquivos e contratos afetados, abordagem e frameworks/APIs atuais compatíveis com o projeto, skills aplicáveis, riscos, estratégia TDD/validação e critérios objetivos de aceite. O Developer não deve reabrir decisões já resolvidas no plano sem registrar a razão.
 - O fluxo é obrigatório: Manager analisa → Developer implementa e valida → Manager revisa → Developer corrige, se necessário → Manager revisa novamente até `APPROVED` ou o limite definido pelo orquestrador. `CHANGES_REQUESTED`, validação obrigatória pendente, saída inválida ou mudança concorrente impede a conclusão.
@@ -33,15 +33,15 @@ projetos consumidores; a ausência deles neste repositório é intencional.
 
 Antes de ler, escrever, revisar ou refatorar código Swift/SwiftUI, carregue e siga:
 
-- [`swiftui-expert-skill`](./ai/skills/swiftui-expert-skill/SKILL.md) em toda implementação, correção, revisão e refatoração.
-- [`swift-concurrency`](./ai/skills/swift-concurrency/SKILL.md) sempre, inclusive durante o planejamento, para avaliar isolamento, tarefas, cancelamento e transferência entre domínios.
-- Ao construir, alterar ou revisar telas, use [`swiftui-ui-patterns`](./ai/skills/swiftui-ui-patterns/SKILL.md); use [`swiftui-patterns`](./ai/skills/swiftui-patterns/SKILL.md) quando a superfície envolver janelas, menus, commands, toolbars, Settings, split views ou inspectors de macOS.
-- Ao adotar, revisar ou corrigir Liquid Glass, use [`swiftui-liquid-glass`](./ai/skills/swiftui-liquid-glass/SKILL.md). A skill é condicional e não autoriza redesign geral.
-- Ao refatorar código Swift/SwiftUI, acrescente [`swiftui-view-refactor`](./ai/skills/swiftui-view-refactor/SKILL.md) às skills aplicáveis ao escopo e à revisão.
-- Para depuração e validação no simulador iOS, carregue [`ios-debugger-agent`](./ai/skills/ios-debugger-agent/SKILL.md) quando o escopo exigir esse ambiente.
+- [`swiftui-expert-skill`](./.agents/skills/swiftui-expert-skill/SKILL.md) em toda implementação, correção, revisão e refatoração.
+- [`swift-concurrency`](./.agents/skills/swift-concurrency/SKILL.md) sempre, inclusive durante o planejamento, para avaliar isolamento, tarefas, cancelamento e transferência entre domínios.
+- Ao construir, alterar ou revisar telas, use [`swiftui-ui-patterns`](./.agents/skills/swiftui-ui-patterns/SKILL.md); use [`swiftui-patterns`](./.agents/skills/swiftui-patterns/SKILL.md) quando a superfície envolver janelas, menus, commands, toolbars, Settings, split views ou inspectors de macOS.
+- Ao adotar, revisar ou corrigir Liquid Glass, use [`swiftui-liquid-glass`](./.agents/skills/swiftui-liquid-glass/SKILL.md). A skill é condicional e não autoriza redesign geral.
+- Ao refatorar código Swift/SwiftUI, acrescente [`swiftui-view-refactor`](./.agents/skills/swiftui-view-refactor/SKILL.md) às skills aplicáveis ao escopo e à revisão.
+- Para depuração e validação no simulador iOS, carregue [`ios-debugger-agent`](./.agents/skills/ios-debugger-agent/SKILL.md) quando o escopo exigir esse ambiente.
 
 Selecione, leia e registre as skills conforme a matriz e a ordem definidas em
-[`SWIFT_REFERENCE.md`](./ai/SWIFT_REFERENCE.md). Skills disponíveis não são
+[`SWIFT_REFERENCE.md`](./.ia/SWIFT_REFERENCE.md). Skills disponíveis não são
 prova de uso automático. O plano e o relatório devem conter `SKILLS_STATUS` com
 `APPLIED`, `SKIPPED` e `CONFLICTS`. Em caso de conflito, as regras do projeto e
 de `SWIFT_REFERENCE.md` prevalecem sobre a orientação genérica da skill.
@@ -51,11 +51,11 @@ de `SWIFT_REFERENCE.md` prevalecem sobre a orientação genérica da skill.
 Os papéis abaixo são executados pelos subagentes nativos definidos nas
 configurações compartilhadas. O agente principal não deve tratar esta seção
 como um workflow alternativo: a coordenação operacional pertence ao
-[`CODEX_ORCHESTRATOR.md`](./ai/CODEX_ORCHESTRATOR.md).
+[`CODEX_ORCHESTRATOR.md`](./.ia/CODEX_ORCHESTRATOR.md).
 
-- Planejamento: `ai_manager` (papel conceitual Manager), somente leitura.
-- Implementação e correções: `ai_developer` (papel conceitual Developer).
-- Revisões: `ai_manager` (papel conceitual Manager), somente leitura.
+- Planejamento: `sol` (papel conceitual Manager), somente leitura.
+- Implementação e correções: `luna` (papel conceitual Developer).
+- Revisões: `sol` (papel conceitual Manager), somente leitura.
 
 O ciclo obrigatório é definido e detalhado pelo orquestrador: Manager planeja →
 Developer implementa e valida → Manager revisa → Developer corrige, se
@@ -70,8 +70,8 @@ Quando uma ferramenta restringir caracteres, diferencie o identificador técnico
 - Rode testes focados durante o desenvolvimento, depois a suíte completa de testes e uma compilação para o iOS Simulator quando o ambiente permitir. Registre comando e resultado; não alegue validação que não foi executada.
 - Simulator e build genérico comprovam compilação, estados e ciclo de vida compatíveis, mas não comprovam comportamento físico do dispositivo, desempenho, térmica, sensores, áudio, permissões ou equivalência a serviços externos. Essas alegações exigem validação no hardware e nos serviços compatíveis descritos no brief.
 - Não adicione dependências de terceiros sem aprovação explícita. Trate avisos do compilador no código alterado como defeitos.
-- Não crie testes de UI nem use XCUIAutomation; a estrutura dos testes segue a seção [Testes](./ai/SWIFT_REFERENCE.md#testes) do manual.
-- Mantenha segredos fora do repositório; as regras de armazenamento seguro ficam na seção [Base técnica e segurança](./ai/SWIFT_REFERENCE.md#base-técnica-e-segurança) do manual Swift.
+- Não crie testes de UI nem use XCUIAutomation; a estrutura dos testes segue a seção [Testes](./.ia/SWIFT_REFERENCE.md#testes) do manual.
+- Mantenha segredos fora do repositório; as regras de armazenamento seguro ficam na seção [Base técnica e segurança](./.ia/SWIFT_REFERENCE.md#base-técnica-e-segurança) do manual Swift.
 
 Ao terminar, entregue as alterações e a evidência de validação proporcional ao escopo. Para mudanças somente documentais, verifique Markdown, links, diffs e preservação dos arquivos fora do escopo.
 

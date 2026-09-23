@@ -15,7 +15,7 @@ Skills atualmente copiadas:
 - swiftui-view-refactor
 - ios-debugger-agent
 
-Em cada projeto consumidor, `ai/skills` deve preferencialmente ser um link para
-`ai/shared/ai/skills`, com `ai/shared` fornecido por este repositório como
-submodule. Assim, as skills acompanham o commit versionado da base sem serem
-copiadas para cada projeto.
+Em cada projeto consumidor, `.agents/skills` recebe cópias regulares destas
+skills durante o `ai-bootstrap`. O manifesto `.ia/managed-files.sha256`
+protege essas cópias durante o `ai-update`; skills extras do consumidor não
+são alteradas.
