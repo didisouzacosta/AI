@@ -36,12 +36,12 @@ para verificar sua descoberta. Não substitua subagentes por tarefas independent
 ## Planejamento e passagem de contexto
 
 O Manager lê o pedido original, as instruções do projeto consumidor,
-`.ia/PROJECT_BRIEF.md`, `.ia/PROJECT_GUIDE.md` e as referências
+`.ai/PROJECT_BRIEF.md`, `.ai/PROJECT_GUIDE.md` e as referências
 relevantes disponíveis no projeto. Esses dois arquivos são derivados dos
 templates desta base e permanecem locais ao projeto consumidor; eles não fazem
 parte deste repositório-base. Para tarefas executadas somente nesta base,
 consulte o pedido, `AGENTS.md` e os templates aplicáveis. Para Swift, cumpra
-`.ia/SWIFT_REFERENCE.md` e as skills obrigatórias antes do trabalho
+`.ai/SWIFT_REFERENCE.md` e as skills obrigatórias antes do trabalho
 correspondente.
 
 O plano deve ser autocontido e incluir:
@@ -63,7 +63,7 @@ Ambiguidades impeditivas resultam em `PLAN_STATUS: BLOCKED`, com a informação
 ou autorização necessária. Não omita um bloqueio para avançar à implementação.
 
 Para tarefas Swift/SwiftUI, use a matriz e a ordem de aplicação de
-`.ia/SWIFT_REFERENCE.md`. Skills não são executadas automaticamente apenas por
+`.ai/SWIFT_REFERENCE.md`. Skills não são executadas automaticamente apenas por
 estarem disponíveis: o Manager deve selecionar as aplicáveis pelo escopo,
 entregar seus caminhos e ordem ao Developer, e justificar cada skill
 condicional não utilizada. Regras específicas do projeto prevalecem sobre
@@ -101,7 +101,7 @@ Relate somente etapas e validações realmente executadas.
 ## Compartilhamento e históricos
 
 Nos projetos consumidores, prefira adicionar esta base como submodule em
-`.ia/shared` e criar links para `AGENTS.md`, o orquestrador e a referência Swift.
+`.ai/shared` e criar links para `AGENTS.md`, o orquestrador e a referência Swift.
 O bootstrap copia as definições de agentes e as skills para os diretórios locais
 reconhecidos pelo Codex. `PROJECT_BRIEF.md` e
 `PROJECT_GUIDE.md` contêm contexto próprio de cada projeto, permanecem locais e

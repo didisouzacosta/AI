@@ -13,6 +13,6 @@ bash "$root/scripts/setup-consumer.sh"
 cat <<EOF
 
 Próximos passos:
-  preencha .ia/PROJECT_BRIEF.md e .ia/PROJECT_GUIDE.md
-  git add .gitmodules .ia/shared .ia .codex .agents AGENTS.md AGENTS_backup.md
+  preencha .ai/PROJECT_BRIEF.md e .ai/PROJECT_GUIDE.md
+  git add .gitmodules .ai/shared .ai .codex .agents AGENTS.md AGENTS_backup.md
 EOF

@@ -16,6 +16,6 @@ Skills atualmente copiadas:
 - ios-debugger-agent
 
 Em cada projeto consumidor, `.agents/skills` recebe cópias regulares destas
-skills durante o `ai-bootstrap`. O manifesto `.ia/managed-files.sha256`
+skills durante o `ai-bootstrap`. O manifesto `.ai/managed-files.sha256`
 protege essas cópias durante o `ai-update`; skills extras do consumidor não
 são alteradas.

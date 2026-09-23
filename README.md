@@ -7,7 +7,7 @@ Esta base fornece regras de engenharia, agentes e skills para projetos Swift.
 ```text
 AI/
 ├── AGENTS.md
-├── .ia/                         # referências e templates compartilhados
+├── .ai/                         # referências e templates compartilhados
 ├── .codex/agents/               # sol.toml e luna.toml
 └── .agents/skills/              # sete skills completas
 ```
@@ -30,19 +30,19 @@ O comando cria a seguinte estrutura:
 
 ```text
 MeuProjeto/
-├── AGENTS.md -> .ia/shared/AGENTS.md
-├── .ia/
+├── AGENTS.md -> .ai/shared/AGENTS.md
+├── .ai/
 │   ├── shared/                  # submodule desta base
 │   ├── PROJECT_BRIEF.md
 │   ├── PROJECT_GUIDE.md
-│   ├── CODEX_ORCHESTRATOR.md -> shared/.ia/CODEX_ORCHESTRATOR.md
-│   ├── SWIFT_REFERENCE.md -> shared/.ia/SWIFT_REFERENCE.md
+│   ├── CODEX_ORCHESTRATOR.md -> shared/.ai/CODEX_ORCHESTRATOR.md
+│   ├── SWIFT_REFERENCE.md -> shared/.ai/SWIFT_REFERENCE.md
 │   └── managed-files.sha256
 ├── .codex/agents/               # cópias locais de sol.toml e luna.toml
 └── .agents/skills/              # cópias locais das skills compartilhadas
 ```
 
-Preencha somente `.ia/PROJECT_BRIEF.md` e `.ia/PROJECT_GUIDE.md`, depois registre
+Preencha somente `.ai/PROJECT_BRIEF.md` e `.ai/PROJECT_GUIDE.md`, depois registre
 o submodule, os links e as cópias locais no Git. O bootstrap preserva o README
 do consumidor e cria os dois documentos apenas quando estiverem ausentes.
 
@@ -56,8 +56,8 @@ antes de modificar o projeto se esse backup já existir, se houver
 ai-update
 ```
 
-O update avança `.ia/shared` para `main`, verifica o manifesto
-`.ia/managed-files.sha256` e sincroniza somente `sol.toml`, `luna.toml` e os
+O update avança `.ai/shared` para `main`, verifica o manifesto
+`.ai/managed-files.sha256` e sincroniza somente `sol.toml`, `luna.toml` e os
 arquivos das sete skills. Uma edição local de arquivo gerenciado interrompe a
 atualização; arquivos extras permanecem intactos. Nenhum comando escreve em
 `~/.codex/agents` ou respeita `CODEX_CONFIG_DIR` para instalar agentes globais.

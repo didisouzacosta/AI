@@ -13,7 +13,7 @@ IMPLEMENTATION_STATUS: BLOCKED explicando a falta antes de editar.
 Leia as instruções do checkout, as referências normativas e integralmente as
 skills aplicáveis exigidas pelo plano e pelo projeto antes do trabalho
 correspondente. Para Swift/SwiftUI, siga a matriz de roteamento e a ordem de
-`.ia/SWIFT_REFERENCE.md`; não assuma que uma skill foi usada apenas porque está
+`.ai/SWIFT_REFERENCE.md`; não assuma que uma skill foi usada apenas porque está
 disponível. Preserve o bloco `SKILLS_STATUS` do plano e atualize-o no relatório,
 registrando skills aplicadas, skills condicionais ignoradas e conflitos.
 Implemente os critérios de aceite do plano com mudanças focadas. Preserve
