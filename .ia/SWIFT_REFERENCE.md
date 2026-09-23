@@ -285,6 +285,65 @@ Use `equatable()` apenas quando a comparação for mais barata que a recomputaç
 - Quebre chamadas longas quando a leitura ou a revisão melhorarem; preserve argumentos nomeados e evite alinhamento artificial que gere ruído.
 - Não altere nomes, pastas ou arquitetura existentes apenas para conformá-los a este documento quando isso estiver fora do escopo da tarefa.
 
+## Lint e formatação automática
+
+Projetos consumidores que adotam esta referência devem usar SwiftLint e
+`swift-format`. SwiftLint verifica convenções, práticas de segurança e sinais
+de complexidade; `swift-format` aplica e verifica regras mecânicas de estilo e
+formatação. As configurações ficam no projeto consumidor, junto ao código:
+`.swiftlint.yml` para SwiftLint e `.swift-format` para `swift-format`. Esta base
+documenta o padrão, mas não distribui configurações que poderiam divergir das
+necessidades ou da estrutura de cada consumidor.
+
+Instale as ferramentas localmente com Homebrew:
+
+```sh
+brew install swiftlint swift-format
+swiftlint version
+swift-format --version
+```
+
+Execute a verificação no diretório raiz do projeto. Ajuste os caminhos se o
+consumidor não usar `Sources/` e `Tests/`:
+
+```sh
+swiftlint lint --strict
+swift-format lint --strict --recursive Sources Tests
+```
+
+Os dois comandos devem ser gates obrigatórios no CI. O CI e o ambiente local
+devem usar versões explícitas e consistentes das ferramentas; atualizações de
+versão devem revisar os diagnósticos e as configurações antes de serem aceitas.
+Para aplicar a formatação, execute:
+
+```sh
+swift-format format --in-place --recursive Sources Tests
+```
+
+Revise o diff produzido antes de registrá-lo. Distribua as responsabilidades
+para evitar diagnósticos duplicados:
+
+- Em SwiftLint, preserve as regras padrão de convenções e configure regras de
+  segurança e complexidade. Inclua verificações para force unwrap e `try!`,
+  nomes claros e limites razoáveis de tamanho de arquivo, tipo, função e
+  closure. Ajuste limites à estrutura real do projeto, sem usá-los para exigir
+  fragmentação artificial.
+- Em `swift-format`, mantenha regras coerentes de indentação, espaços, quebras
+  de linha, chaves, organização de imports e comentários de documentação. Use
+  a mesma configuração para formatar e verificar, evitando divergência entre
+  o resultado do formatter e o linter.
+- Desative ou ajuste em SwiftLint as regras de layout que se sobreponham às
+  regras de formatação escolhidas em `swift-format`. Não use a formatação
+  automática como substituto da revisão de mudanças semânticas.
+- Em SwiftUI, mantenha as regras estruturais desta referência: `body` sem
+  efeitos colaterais ou trabalho pesado, estado e ações nos locais definidos
+  por MVVM, identidade estável nas coleções e controles acessíveis. Como essas
+  propriedades nem sempre podem ser verificadas por lint, confira-as também
+  no checklist de revisão.
+- Não desative regras globalmente para silenciar violações pontuais. Quando
+  uma exceção for necessária, limite-a à menor linha ou trecho possível e
+  explique o motivo junto à supressão.
+
 ## Animações
 
 - Anime somente mudanças de estado observáveis e intencionais.
@@ -355,3 +414,6 @@ Use exclusivamente Swift Testing (`import Testing`, `@Test`, `#expect` e `#requi
 - [navigationDestination(for:destination:)](<https://developer.apple.com/documentation/swiftui/view/navigationdestination(for:destination:)>)
 - [Xcode Build Settings Reference](https://developer.apple.com/documentation/xcode/build-settings-reference)
 - [GlassEffectContainer](https://developer.apple.com/documentation/swiftui/glasseffectcontainer)
+- [SwiftLint: instalação, execução e configuração](https://github.com/realm/SwiftLint)
+- [`swift-format`: instalação e uso](https://github.com/swiftlang/swift-format)
+- [`swift-format`: regras de lint e formatação](https://github.com/swiftlang/swift-format/blob/main/Documentation/RuleDocumentation.md)
