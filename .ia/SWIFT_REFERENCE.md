@@ -278,9 +278,26 @@ Use `equatable()` apenas quando a comparação for mais barata que a recomputaç
 
 ## Organização e estilo
 
+- Adote o [Google Swift Style Guide](https://google.github.io/swift/) como
+  convenção geral para todo código Swift do projeto: arquivos com SwiftUI,
+  arquivos Swift puro e testes. Não crie um estilo separado para arquivos que
+  importam somente Foundation ou outras bibliotecas sem UI; a mesma referência
+  cobre declarações, nomes, organização, comentários e formatação Swift.
+- Em cadeias de modificadores SwiftUI, siga os exemplos da Apple em
+  [Configuring Views](https://developer.apple.com/documentation/swiftui/configuring-views):
+  coloque cada modificador em sua própria linha, encadeado à View ou ao
+  modificador anterior. Essa regra específica de legibilidade complementa o
+  estilo geral e deve ser aplicada também quando a cadeia caberia em uma linha.
+- Configure `.swift-format` para aplicar e verificar a convenção adotada sem
+  alterar a semântica das regras. O arquivo de configuração vive no projeto
+  consumidor; documente ali a versão da ferramenta e os comandos reais usados
+  no desenvolvimento e no CI. Preserve exceções locais justificadas quando
+  uma regra do formatador não puder representar fielmente a convenção.
 - Use nomes que expressem domínio e intenção; evite `Manager`, `Helper` ou `Service` genéricos quando uma responsabilidade mais precisa for possível.
 - Use `MARK:` somente para separar responsabilidades reais e mantenha a ordem das declarações previsível.
-- Cabeçalhos de arquivo, autores, datas e regras de formatação devem seguir a convenção do projeto consumidor. Não invente metadados obrigatórios para uma base compartilhada.
+- Cabeçalhos de arquivo, autores e datas seguem a convenção do projeto
+  consumidor. Não invente metadados obrigatórios para uma base compartilhada;
+  para formatação Swift, aplique as regras definidas nesta seção.
 - Mantenha uma linha entre declarações independentes e agrupe modificadores ou propriedades que formam uma única unidade semântica.
 - Quebre chamadas longas quando a leitura ou a revisão melhorarem; preserve argumentos nomeados e evite alinhamento artificial que gere ruído.
 - Não altere nomes, pastas ou arquitetura existentes apenas para conformá-los a este documento quando isso estiver fora do escopo da tarefa.
@@ -354,7 +371,17 @@ para evitar diagnósticos duplicados:
 
 ## Previews
 
-- Cada tela importante e cada componente complexo deve ter preview útil, determinístico e autocontido.
+- Toda `View` criada deve ter pelo menos um `#Preview` útil, determinístico e
+  autocontido. Inclua previews para todos os estados de apresentação que a View
+  suporta, com nomes que identifiquem cada estado quando houver mais de um.
+- Dentro de `#Preview`, use `@Previewable` em cada propriedade dinâmica local
+  necessária para configurar ou dirigir esses estados, como `@State`,
+  `@Binding` ou `@Query`. `@Previewable` só pode ser usado no corpo de
+  `#Preview`; não é um atributo para aplicar à declaração da própria View nem
+  substitui um preview por estado.
+- Se o estado for fornecido por um ViewModel, injete uma instância de preview
+  determinística para cada estado em vez de duplicar o estado da produção com
+  propriedades locais sem relação com a fonte de verdade da View.
 - Use dados locais e dependências fakes; previews não devem depender de rede, autenticação real, banco compartilhado ou arquivos mutáveis do usuário.
 - Cubra estados representativos: conteúdo, vazio, carregando, erro, conteúdo longo, Dynamic Type e tamanho de dispositivo relevante.
 - Injete ViewModels e serviços de preview pelo mesmo contrato usado em produção, com implementações previsíveis.
@@ -408,6 +435,11 @@ Use exclusivamente Swift Testing (`import Testing`, `@Test`, `#expect` e `#requi
 
 ## Referências oficiais
 
+- [Google Swift Style Guide](https://google.github.io/swift/)
+- [Configuring Views](https://developer.apple.com/documentation/swiftui/configuring-views)
+- [Previewable](<https://developer.apple.com/documentation/swiftui/previewable()>)
+- [Preview(_:body:)](<https://developer.apple.com/documentation/swiftui/preview(_:body:)>)
+- [Previews in Xcode](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 - [Managing model data in your app](https://developer.apple.com/documentation/SwiftUI/Managing-model-data-in-your-app)
 - [Bindable](https://developer.apple.com/documentation/swiftui/bindable)
 - [Understanding the navigation stack](https://developer.apple.com/documentation/swiftui/understanding-the-navigation-stack)
