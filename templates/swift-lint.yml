@@ -1,0 +1,28 @@
+name: Swift lint
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  lint:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          export DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version | grep -Fx 'Xcode 26.6'
+      - name: Install SwiftLint 0.63.2
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/realm/SwiftLint/releases/download/0.63.2/portable_swiftlint.zip \
+            --output "$RUNNER_TEMP/swiftlint.zip"
+          mkdir "$RUNNER_TEMP/swiftlint"
+          unzip -q "$RUNNER_TEMP/swiftlint.zip" -d "$RUNNER_TEMP/swiftlint"
+          chmod +x "$RUNNER_TEMP/swiftlint/swiftlint"
+          echo "$RUNNER_TEMP/swiftlint" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/swiftlint/swiftlint" version | grep -Fx '0.63.2'
+      - name: Verify Swift tooling and lint
+        run: scripts/lint-swift.sh

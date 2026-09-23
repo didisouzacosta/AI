@@ -14,5 +14,6 @@ cat <<EOF
 
 Próximos passos:
   preencha .ai/PROJECT_BRIEF.md e .ai/PROJECT_GUIDE.md
-  git add .gitmodules .ai/shared .ai .codex .agents AGENTS.md AGENTS_backup.md
+  execute scripts/lint-swift.sh localmente e conecte-o ao CI do consumidor
+  git add .gitmodules .ai/shared .ai .codex .agents .swiftlint.yml .swift-format scripts/lint-swift.sh scripts/test-required-class-marks.sh .github/workflows/swift-lint.yml AGENTS.md AGENTS_backup.md
 EOF

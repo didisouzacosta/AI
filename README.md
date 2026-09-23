@@ -9,7 +9,12 @@ AI/
 ├── AGENTS.md
 ├── .ai/                         # referências e templates compartilhados
 ├── .codex/agents/               # sol.toml e luna.toml
-└── .agents/skills/              # sete skills completas
+├── .agents/skills/              # sete skills completas
+├── .swiftlint.yml               # baseline SwiftLint
+├── .swift-format                # regras de formatação Swift
+├── scripts/lint-swift.sh        # gate estrito local/CI
+├── templates/swift-lint.yml     # workflow instalado nos consumidores
+└── .github/workflows/ai-base-checks.yml
 ```
 
 ## Configurar um consumidor
@@ -39,11 +44,17 @@ MeuProjeto/
 │   ├── SWIFT_REFERENCE.md -> shared/.ai/SWIFT_REFERENCE.md
 │   └── managed-files.sha256
 ├── .codex/agents/               # cópias locais de sol.toml e luna.toml
-└── .agents/skills/              # cópias locais das skills compartilhadas
+├── .agents/skills/              # cópias locais das skills compartilhadas
+├── .swiftlint.yml
+├── .swift-format
+├── scripts/lint-swift.sh
+├── scripts/test-required-class-marks.sh
+└── .github/workflows/swift-lint.yml
 ```
 
-Preencha somente `.ai/PROJECT_BRIEF.md` e `.ai/PROJECT_GUIDE.md`, depois registre
-o submodule, os links e as cópias locais no Git. O bootstrap preserva o README
+Preencha somente `.ai/PROJECT_BRIEF.md` e `.ai/PROJECT_GUIDE.md`, execute
+`scripts/lint-swift.sh` localmente e conecte-o como gate obrigatório do CI.
+Depois registre o submodule, os links e as cópias locais no Git. O bootstrap preserva o README
 do consumidor e cria os dois documentos apenas quando estiverem ausentes.
 
 Se já houver `AGENTS.md`, ele é salvo como `AGENTS_backup.md`. O comando para
@@ -57,9 +68,10 @@ ai-update
 ```
 
 O update avança `.ai/shared` para `main`, verifica o manifesto
-`.ai/managed-files.sha256` e sincroniza somente `sol.toml`, `luna.toml` e os
-arquivos das sete skills. Uma edição local de arquivo gerenciado interrompe a
-atualização; arquivos extras permanecem intactos. Nenhum comando escreve em
+`.ai/managed-files.sha256` e sincroniza agentes, skills, configurações de lint
+e formatter, scripts do gate e o workflow Swift. O gate cobre fontes, testes e
+`Package.swift` dos caminhos do consumidor sem percorrer caches ou submodules.
+Uma edição local de arquivo gerenciado interrompe a atualização; arquivos extras permanecem intactos. Nenhum comando escreve em
 `~/.codex/agents` ou respeita `CODEX_CONFIG_DIR` para instalar agentes globais.
 
 Os nomes de despacho são `sol` (Manager, `gpt-6-sol` com esforço `high`) e

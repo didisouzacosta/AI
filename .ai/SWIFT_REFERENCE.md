@@ -109,6 +109,8 @@ auditável e impede alegar uso automático sem evidência.
 
 Use a estrutura abaixo como padrão para um app. `MyApp` e os nomes de features são ilustrativos e devem ser substituídos pelo nome real do produto.
 
+Em todo o projeto Xcode, organize arquivos e recursos sempre com **folders** (pastas sincronizadas com o sistema de arquivos), nunca com **groups**. Ao criar ou mover itens, mantenha a hierarquia do projeto correspondente às pastas reais no disco.
+
 ```text
 MyApp/
 ├── AGENTS.md
@@ -159,6 +161,7 @@ MyApp/
 
 ### Responsabilidade das pastas
 
+- Modelos de domínio, de apresentação, de previews e fixtures devem ser declarados em arquivos Swift próprios, fora de arquivos que declaram `View`. Arquivos de View compõem a interface e referenciam esses tipos; não definem modelos, mesmo como tipos privados aninhados ou auxiliares no mesmo arquivo.
 - `Resources/` contém somente conteúdo empacotado com o app: assets, localizações, fontes, áudio, vídeo e conteúdo de preview. Não coloque código Swift aqui.
 - `Sources/App/` contém a raiz do app, a composição das dependências e a fonte de verdade da navegação global.
 - `Sources/Core/` contém código reutilizável entre features. Separe por responsabilidade e não use `Core` como depósito genérico para arquivos sem dono claro.
@@ -169,7 +172,7 @@ MyApp/
 
 MVVM é obrigatório para telas e componentes comportamentais:
 
-- A `View` descreve a hierarquia visual, encaminha ações e observa o estado de apresentação.
+- A `View` descreve a hierarquia visual, encaminha ações e observa o estado de apresentação. Ela referencia modelos definidos em arquivos próprios e não declara tipos de domínio, apresentação, preview ou fixture.
 - O `ViewModel` possui o estado de apresentação, expõe intenções nomeadas e coordena chamadas aos serviços ou repositórios injetados.
 - Serviços, repositórios, clientes de rede, persistência e integrações não devem ser instanciados dentro do `body` nem escondidos em singletons globais.
 - O `ViewModel` não deve conhecer detalhes de layout, modificadores SwiftUI ou controles visuais.
@@ -289,12 +292,20 @@ Use `equatable()` apenas quando a comparação for mais barata que a recomputaç
   modificador anterior. Essa regra específica de legibilidade complementa o
   estilo geral e deve ser aplicada também quando a cadeia caberia em uma linha.
 - Configure `.swift-format` para aplicar e verificar a convenção adotada sem
-  alterar a semântica das regras. O arquivo de configuração vive no projeto
-  consumidor; documente ali a versão da ferramenta e os comandos reais usados
-  no desenvolvimento e no CI. Preserve exceções locais justificadas quando
-  uma regra do formatador não puder representar fielmente a convenção.
+  alterar a semântica das regras. `ai-bootstrap` cria `.swiftlint.yml` e
+  `.swift-format` no consumidor; `ai-update` os sincroniza com proteção de
+  manifesto, conflito local e rollback, como os demais arquivos gerenciados.
+  Ambos também instalam/atualizam `scripts/lint-swift.sh`, os fixtures de MARK
+  e o workflow de consumidor `.github/workflows/swift-lint.yml` a partir do
+  template compartilhado. A base AI mantém seu workflow de testes próprio
+  porque não contém código Swift.
+  Ajuste as configurações ao layout real sem desabilitar verificações para
+  esconder violações. Registre no guia do consumidor as versões e os comandos
+  usados no desenvolvimento e no CI. Preserve exceções locais justificadas
+  quando uma regra do formatador não puder representar fielmente a convenção.
 - Use nomes que expressem domínio e intenção; evite `Manager`, `Helper` ou `Service` genéricos quando uma responsabilidade mais precisa for possível.
-- Use `MARK:` somente para separar responsabilidades reais e mantenha a ordem das declarações previsível.
+- Desde o início da construção, toda declaração `class` deve começar seu corpo com uma seção `// MARK: - <responsabilidade>` que nomeie a responsabilidade do tipo; isso vale mesmo para classes curtas e testes. Não conte um comentário `MARK:` antes da declaração como seção da classe. Marque também cada classe aninhada. Acrescente outras seções `MARK:` quando separar responsabilidades reais e mantenha a ordem das declarações previsível.
+- Não deixe para inserir os `MARK:` depois da implementação: crie a seção junto com o esqueleto da classe e coloque novas declarações sob a seção correspondente.
 - Cabeçalhos de arquivo, autores e datas seguem a convenção do projeto
   consumidor. Não invente metadados obrigatórios para uma base compartilhada;
   para formatação Swift, aplique as regras definidas nesta seção.
@@ -309,39 +320,61 @@ Projetos consumidores que adotam esta referência devem usar SwiftLint e
 de complexidade; `swift-format` aplica e verifica regras mecânicas de estilo e
 formatação. As configurações ficam no projeto consumidor, junto ao código:
 `.swiftlint.yml` para SwiftLint e `.swift-format` para `swift-format`. Esta base
-documenta o padrão, mas não distribui configurações que poderiam divergir das
-necessidades ou da estrutura de cada consumidor.
+distribui uma configuração compartilhada e gerenciada pelo bootstrap/update;
+adapte somente ao layout real do consumidor sem enfraquecer os gates.
 
-Instale as ferramentas localmente com Homebrew:
+Use as versões registradas no `.ai/PROJECT_GUIDE.md`. Para este padrão, a
+baseline é SwiftLint 0.63.2 e `swift-format` 6.3.0, incluído no Xcode 26.6.
+Quando `swift-format` vier do Xcode, invoque-o com `xcrun`:
 
 ```sh
-brew install swiftlint swift-format
+brew install swiftlint
 swiftlint version
-swift-format --version
+xcrun swift-format --version
 ```
 
-Execute a verificação no diretório raiz do projeto. Ajuste os caminhos se o
-consumidor não usar `Sources/` e `Tests/`:
+Execute ambos desde a raiz do consumidor, passando apenas os diretórios Swift
+e o manifesto de pacote reais. Inclua fontes, testes e `Package.swift`; não
+varra `.ai/shared`, caches ou diretórios fora do produto. Um script de gate do
+projeto deve fixar e verificar as versões e rodar os dois comandos em modo
+strict localmente e no CI. Para uma estrutura SwiftPM, por exemplo, passe
+explicitamente os caminhos reais do projeto e do pacote:
 
 ```sh
-swiftlint lint --strict
-swift-format lint --strict --recursive Sources Tests
+swiftlint lint --strict --no-cache --config .swiftlint.yml Sources Tests Package.swift
+xcrun swift-format lint --strict --configuration .swift-format --recursive Sources Tests Package.swift
 ```
 
-Os dois comandos devem ser gates obrigatórios no CI. O CI e o ambiente local
-devem usar versões explícitas e consistentes das ferramentas; atualizações de
-versão devem revisar os diagnósticos e as configurações antes de serem aceitas.
-Para aplicar a formatação, execute:
+O gate distribuído é `scripts/lint-swift.sh`. Ele coleta as raízes `Sources/`
+e `Tests/` do projeto e dos apps, os diretórios `Sources/` e `Tests/` de cada
+pacote em `Packages/`, e os respectivos `Package.swift`; também aceita
+`Sources/`, `Tests/` e `Package.swift` na raiz. Ele ignora submodules
+registrados, `.ai/shared`, caches e pastas fora dessas raízes. Execute-o antes
+de concluir cada alteração Swift e no CI. O script termina com erro se não
+encontrar nenhum caminho Swift no layout suportado.
+
+Atualizações de versão revisam configurações e diagnósticos antes de serem
+aceitas. Para formatar, use a mesma configuração e caminhos:
 
 ```sh
-swift-format format --in-place --recursive Sources Tests
+xcrun swift-format format --in-place --configuration .swift-format --recursive Sources Tests Package.swift
 ```
+
+A regra `required_class_mark` do SwiftLint verifica declarações de classe no
+formato Swift convencional usado pelo formatter: atributos/modificadores antes
+da declaração, abertura do corpo com `{` na mesma linha, e `// MARK:` como
+primeira linha dentro do corpo. Os fixtures do gate cobrem classe curta,
+atributos e modificadores, comentários externos e classes aninhadas. Regex do
+SwiftLint não é parser de Swift e não cobre qualquer sintaxe futura ou quebras
+atípicas; por isso, revise manualmente todas as classes e seus `MARK:` no diff.
+A regra automática complementa esse checklist e não substitui a revisão.
+Para conferir os casos automatizados, execute `scripts/test-required-class-marks.sh`.
 
 Revise o diff produzido antes de registrá-lo. Distribua as responsabilidades
 para evitar diagnósticos duplicados:
 
 - Em SwiftLint, preserve as regras padrão de convenções e configure regras de
-  segurança e complexidade. Inclua verificações para force unwrap e `try!`,
+  segurança e complexidade. Ative `force_unwrapping` e `force_try`, inclua
   nomes claros e limites razoáveis de tamanho de arquivo, tipo, função e
   closure. Ajuste limites à estrutura real do projeto, sem usá-los para exigir
   fragmentação artificial.
@@ -421,6 +454,7 @@ Use exclusivamente Swift Testing (`import Testing`, `@Test`, `#expect` e `#requi
 
 - [ ] A organização segue `Resources/`, `Sources/App`, `Sources/Core`, `Sources/Features` e `Tests/`.
 - [ ] Cada tela ou componente comportamental possui View e ViewModel coerentes com MVVM.
+- [ ] Modelos de domínio/apresentação, fixtures e dados de preview ficam em arquivos próprios, fora de arquivos que declaram View.
 - [ ] A composição de dependências está em `AppContainer` ou em um ponto equivalente explícito.
 - [ ] A navegação tem fonte de verdade única e rotas leves.
 - [ ] O `body` não contém efeitos colaterais nem trabalho pesado repetido.

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TEST_DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode 26.6.app/Contents/Developer}"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ai-base-tests.XXXXXX")"
 REMOTE="$TMP/remote.git"; SEED="$TMP/seed"; CONSUMER="$TMP/consumer with spaces"
 trap 'rm -rf "$TMP"' EXIT INT TERM
@@ -16,12 +17,119 @@ run_bootstrap_fail() { (cd "$1" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMO
 snapshot() { (cd "$1" && { find . -path './.git' -prune -o -type f -print | LC_ALL=C sort | while IFS= read -r f; do shasum -a 256 "$f"; done; find . -path './.git' -prune -o -type l -print | LC_ALL=C sort | while IFS= read -r f; do printf 'LINK %s %s\n' "$f" "$(readlink "$f")"; done; git status --porcelain=v1; git ls-files --stage; git config --local --list | LC_ALL=C sort; test -f .gitmodules && cat .gitmodules || true; test -d .ai/shared && git -C .ai/shared rev-parse HEAD && git -C .ai/shared branch --show-current || true; }) > "$2"; }
 seed() {
   git init --bare "$REMOTE" >/dev/null
-  mkdir -p "$SEED/.ai" "$SEED/.codex/agents" "$SEED/.agents/skills/example/assets"
+  mkdir -p "$SEED/.ai" "$SEED/.codex/agents" "$SEED/.agents/skills/example/assets" \
+    "$SEED/scripts" "$SEED/templates" "$SEED/.github/workflows"
   printf '# agents\n' > "$SEED/AGENTS.md"; printf '# orchestrator\n' > "$SEED/.ai/CODEX_ORCHESTRATOR.md"; printf '# swift\n' > "$SEED/.ai/SWIFT_REFERENCE.md"
   printf 'brief v1\n' > "$SEED/.ai/PROJECT_BRIEF.template.md"; printf 'guide v1\n' > "$SEED/.ai/PROJECT_GUIDE.template.md"
   printf 'luna v1\n' > "$SEED/.codex/agents/luna.toml"; printf 'sol v1\n' > "$SEED/.codex/agents/sol.toml"; printf 'skill v1\n' > "$SEED/.agents/skills/example/SKILL.md"; printf old > "$SEED/.agents/skills/example/a"; printf '\001\002\377' > "$SEED/.agents/skills/example/assets/logo.bin"
+  cp "$ROOT/.swiftlint.yml" "$SEED/.swiftlint.yml"
+  cp "$ROOT/.swift-format" "$SEED/.swift-format"
+  cp "$ROOT/scripts/lint-swift.sh" "$SEED/scripts/lint-swift.sh"
+  cp "$ROOT/scripts/test-required-class-marks.sh" "$SEED/scripts/test-required-class-marks.sh"
+  chmod +x "$SEED/scripts/lint-swift.sh" "$SEED/scripts/test-required-class-marks.sh"
+  cp "$ROOT/templates/swift-lint.yml" "$SEED/templates/swift-lint.yml"
   git -C "$SEED" init >/dev/null; git -C "$SEED" config user.email test@example.com; git -C "$SEED" config user.name Tests
   git -C "$SEED" add .; git -C "$SEED" commit -m v1 >/dev/null; git -C "$SEED" branch -M main; git -C "$SEED" remote add origin "$REMOTE"; git -C "$SEED" push -u origin main >/dev/null
+}
+test_lint_tooling_distribution() {
+  local p="$TMP/lint-tooling consumer" source_rel
+  consumer "$p"
+  mkdir -p "$p/.github/workflows"
+  cp "$ROOT/templates/swift-lint.yml" "$p/.github/workflows/swift-lint.yml"
+  printf 'consumer build workflow\n' > "$p/.github/workflows/build.yml"
+  run_bootstrap "$p" || { cat "$TMP/out"; fail lint-tooling-bootstrap; }
+  for rel in .swiftlint.yml .swift-format scripts/lint-swift.sh \
+    scripts/test-required-class-marks.sh .github/workflows/swift-lint.yml; do
+    source_rel="$rel"
+    [[ "$rel" != .github/workflows/swift-lint.yml ]] || source_rel=templates/swift-lint.yml
+    copy "$p/$rel" "$SEED/$source_rel"
+    grep -Fq "  $rel" "$p/.ai/managed-files.sha256" || fail "manifest-$rel"
+  done
+  [[ -x "$p/scripts/lint-swift.sh" && -x "$p/scripts/test-required-class-marks.sh" ]] || fail lint-scripts-executable
+  [[ "$(<"$p/.github/workflows/build.yml")" == 'consumer build workflow' ]] || fail unrelated-workflow-preserved
+  mkdir -p "$p/Sources/Core" "$p/Tests/CoreTests" "$p/DemoApp/Sources/DemoApp" \
+    "$p/DemoApp/Tests" "$p/Packages/Kit/Sources/Kit" "$p/Packages/Kit/Tests" \
+    "$p/.ai/shared/Hidden" "$p/.build/Hidden" "$p/.swiftpm/Hidden" \
+    "$p/DerivedData/Hidden" "$p/Unrelated/Hidden"
+  for rel in Sources/Core/Core.swift Tests/CoreTests/CoreTests.swift \
+    DemoApp/Sources/DemoApp/DemoApp.swift DemoApp/Tests/DemoAppTests.swift \
+    Packages/Kit/Sources/Kit/Kit.swift Packages/Kit/Tests/KitTests.swift; do
+    printf '// MARK: - Probe\nstruct Probe {}\n' > "$p/$rel"
+  done
+  printf '// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: "Consumer")\n' > "$p/Package.swift"
+  printf '// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: "Kit")\n' > "$p/Packages/Kit/Package.swift"
+  for rel in .ai/shared/Hidden/Bad.swift .build/Hidden/Bad.swift .swiftpm/Hidden/Bad.swift \
+    DerivedData/Hidden/Bad.swift Unrelated/Hidden/Bad.swift; do
+    printf 'final class MissingMark {}\n' > "$p/$rel"
+  done
+  local vendor_source="$TMP/vendor-source" vendor_remote="$TMP/vendor.git"
+  mkdir "$vendor_source"; git init "$vendor_source" >/dev/null
+  git -C "$vendor_source" config user.email test@example.com; git -C "$vendor_source" config user.name Tests
+  mkdir -p "$vendor_source/Sources/ThirdParty"
+  printf 'final class ExternalWithoutMark {}\n' > "$vendor_source/Sources/ThirdParty/Bad.swift"
+  git -C "$vendor_source" add .; git -C "$vendor_source" commit -m fixture >/dev/null
+  git clone --bare "$vendor_source" "$vendor_remote" >/dev/null
+  git -C "$p" -c protocol.file.allow=always submodule add "$vendor_remote" \
+    DemoApp/Sources/DemoApp/External >/dev/null
+  git -C "$p" -c protocol.file.allow=always submodule add "$vendor_remote" \
+    Packages/Vendor >/dev/null
+  printf '// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: "External")\n' \
+    > "$p/Packages/Vendor/Package.swift"
+  git -C "$p/.ai/shared" add Hidden/Bad.swift
+  git -C "$p/.ai/shared" -c user.email=test@example.com -c user.name=Tests \
+    commit -m 'fixture excluded from lint' >/dev/null
+  git -C "$p" add .ai/shared
+  (cd "$p" && DEVELOPER_DIR="$TEST_DEVELOPER_DIR" bash scripts/lint-swift.sh) > "$TMP/lint-gate.out" 2>&1 || {
+    cat "$TMP/lint-gate.out" >&2
+    fail lint-gate-supported-layouts
+  }
+  for rel in Sources/Core/Core.swift Tests/CoreTests/CoreTests.swift \
+    DemoApp/Sources/DemoApp/DemoApp.swift DemoApp/Tests/DemoAppTests.swift \
+    Packages/Kit/Sources/Kit/Kit.swift Packages/Kit/Tests/KitTests.swift Package.swift \
+    Packages/Kit/Package.swift; do
+    grep -Fq "$rel" "$TMP/lint-gate.out" || fail "lint-gate-missing-$rel"
+  done
+  for rel in .ai/shared/Hidden/Bad.swift .build/Hidden/Bad.swift .swiftpm/Hidden/Bad.swift \
+    DerivedData/Hidden/Bad.swift Unrelated/Hidden/Bad.swift \
+    DemoApp/Sources/DemoApp/External/Sources/ThirdParty/Bad.swift \
+    Packages/Vendor/Sources/ThirdParty/Bad.swift Packages/Vendor/Package.swift; do
+    if grep -Fq "$rel" "$TMP/lint-gate.out"; then fail "lint-gate-unrelated-$rel"; fi
+  done
+  local no_swift="$TMP/no-swift"; consumer "$no_swift"; run_bootstrap "$no_swift" || fail no-swift-bootstrap
+  if (cd "$no_swift" && DEVELOPER_DIR="$TEST_DEVELOPER_DIR" bash scripts/lint-swift.sh) > "$TMP/no-swift.out" 2>&1; then fail lint-gate-requires-swift; fi
+  grep -Fq 'No Swift sources' "$TMP/no-swift.out" || fail lint-gate-empty-diagnostic
+
+  local rollback="$TMP/rollback-new-dirs" rollback_empty="$TMP/rollback-empty-dirs"
+  consumer "$rollback"
+  if (cd "$rollback" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" \
+    AI_TEST_FAIL_AT=after-lint-gate bash "$ROOT/scripts/bootstrap-consumer.sh") > "$TMP/lint-rollback.out" 2>&1; then
+    fail lint-gate-bootstrap-rollback
+  fi
+  [[ ! -e "$rollback/scripts" && ! -e "$rollback/.github" ]] || fail lint-rollback-created-directories
+  consumer "$rollback_empty"; mkdir -p "$rollback_empty/scripts" "$rollback_empty/.github/workflows"
+  if (cd "$rollback_empty" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" \
+    AI_TEST_FAIL_AT=after-lint-gate bash "$ROOT/scripts/bootstrap-consumer.sh") > "$TMP/lint-rollback-empty.out" 2>&1; then
+    fail lint-gate-empty-dir-rollback
+  fi
+  [[ -d "$rollback_empty/scripts" && -z "$(ls -A "$rollback_empty/scripts")" ]] || fail preserve-empty-scripts
+  [[ -d "$rollback_empty/.github/workflows" && -z "$(ls -A "$rollback_empty/.github/workflows")" ]] || fail preserve-empty-workflow-dirs
+  local before_update="$TMP/lint-gate-update-before"
+  snapshot "$p" "$before_update"
+  if run_update_fail "$p" after-lint-gate; then fail lint-gate-update-rollback; fi
+  snapshot "$p" "$TMP/lint-gate-update-after"
+  cmp -s "$before_update" "$TMP/lint-gate-update-after" || fail lint-gate-update-rollback-state
+
+  local workflow_conflict="$TMP/workflow-conflict" config_link="$TMP/config-link" outside="$TMP/config-outside"
+  consumer "$workflow_conflict"; mkdir -p "$workflow_conflict/.github/workflows"
+  printf 'consumer workflow\n' > "$workflow_conflict/.github/workflows/swift-lint.yml"
+  if run_bootstrap "$workflow_conflict"; then fail workflow-conflict; fi
+  [[ "$(<"$workflow_conflict/.github/workflows/swift-lint.yml")" == 'consumer workflow' && ! -e "$workflow_conflict/.ai/shared" ]] || fail workflow-conflict-preflight
+  consumer "$config_link"; mkdir "$outside"; printf outside-config > "$outside/formatter"
+  ln -s "$outside/formatter" "$config_link/.swift-format"
+  if run_bootstrap "$config_link"; then fail formatter-symlink-conflict; fi
+  [[ -L "$config_link/.swift-format" && "$(<"$outside/formatter")" == outside-config && ! -e "$config_link/.ai/shared" ]] || fail formatter-symlink-preserved
+
+  run_bootstrap "$p" || { cat "$TMP/out"; fail lint-tooling-idempotence; }
 }
 test_layout_and_idempotence() {
   consumer "$CONSUMER"; printf 'consumer readme\n' > "$CONSUMER/README.md"; run_bootstrap "$CONSUMER" || { cat "$TMP/out"; fail bootstrap; }
@@ -42,6 +150,11 @@ test_update_safety() {
   local p="$TMP/update"; consumer "$p"; run_bootstrap "$p" || fail update-bootstrap; printf extra > "$p/.agents/skills/custom.txt"; printf agent-extra > "$p/.codex/agents/custom.toml"
   printf 'luna v2\n' > "$SEED/.codex/agents/luna.toml"; rm "$SEED/.agents/skills/example/a"; printf new > "$SEED/.agents/skills/example/ab"; printf 'skill v2\n' > "$SEED/.agents/skills/example/SKILL.md"; git -C "$SEED" add -A; git -C "$SEED" commit -m v2 >/dev/null; git -C "$SEED" push >/dev/null
   run_update "$p" || { cat "$TMP/out"; fail update; }; [[ "$(<"$p/.codex/agents/luna.toml")" == 'luna v2' ]] || fail update-copy; [[ -e "$p/.codex/agents/sol.toml" && ! -e "$p/.agents/skills/example/a" && -e "$p/.agents/skills/example/ab" ]] || fail exact-obsolete-removal; [[ "$(<"$p/.agents/skills/custom.txt")" == extra && "$(<"$p/.codex/agents/custom.toml")" == agent-extra ]] || fail extras
+  printf local-lint-edit > "$p/.swiftlint.yml"
+  printf 'config marker\n' > "$SEED/.agents/skills/example/config-update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m config-update >/dev/null; git -C "$SEED" push >/dev/null
+  if run_update "$p"; then fail edited-lint-config; fi
+  [[ "$(<"$p/.swiftlint.yml")" == local-lint-edit ]] || fail edited-lint-config-overwrite
+  cp "$SEED/.swiftlint.yml" "$p/.swiftlint.yml"
   printf edited > "$p/.codex/agents/luna.toml"; printf 'luna v3\n' > "$SEED/.codex/agents/luna.toml"; git -C "$SEED" add -A; git -C "$SEED" commit -m v3 >/dev/null; git -C "$SEED" push >/dev/null; if run_update "$p"; then fail edited-managed; fi; [[ "$(<"$p/.codex/agents/luna.toml")" == edited ]] || fail edited-overwrite
 }
 test_old_paths_and_missing_agents() {
@@ -131,5 +244,5 @@ test_modified_assets_and_special_destinations() {
   consumer "$r"; mkdir -p "$r/.codex/agents"; mkfifo "$r/.codex/agents/luna.toml"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
 }
 test_update_rollback() { local p="$TMP/update-rollback" before="$TMP/update-rollback-before"; consumer "$p"; run_bootstrap "$p" || fail update-rollback-bootstrap; printf remote-change > "$SEED/.agents/skills/example/update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m update-rollback >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; if run_update_fail "$p" after-submodule; then fail update-rollback; fi; snapshot "$p" "$TMP/update-rollback-after"; if ! cmp -s "$before" "$TMP/update-rollback-after"; then diff -u "$before" "$TMP/update-rollback-after" >&2 || true; fail update-rollback-state; fi; }
-seed; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
+seed; test_lint_tooling_distribution; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
 echo 'OK: consumer setup tests'

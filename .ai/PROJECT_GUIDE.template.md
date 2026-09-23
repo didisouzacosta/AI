@@ -75,8 +75,11 @@ dependências, navegação, persistência e integrações externas.
 - Cadeias de modificadores SwiftUI: cada modificador em sua própria linha,
   conforme os exemplos da Apple em
   [Configuring Views](https://developer.apple.com/documentation/swiftui/configuring-views).
-- Ferramentas e versões fixadas:
-- Comandos de lint e formatação usados localmente e no CI:
+- Bootstrap/update sincronizam `.swiftlint.yml` e `.swift-format` com manifesto e proteção de conflitos.
+- Baseline desta base: SwiftLint 0.63.2 e `xcrun swift-format` 6.3.0 do Xcode 26.6; confirme compatibilidade no consumidor.
+- `scripts/lint-swift.sh` é o gate executável local/CI, verifica versões e cobre somente fontes, testes e `Package.swift` nos caminhos do consumidor. Conecte esse comando ao job obrigatório de CI do projeto.
+- Bootstrap/update também sincronizam `.github/workflows/swift-lint.yml`; o workflow da base fica em arquivo separado porque esta base não contém Swift.
+- Formate desde a criação: `xcrun swift-format format --in-place --configuration .swift-format --recursive` sobre os mesmos caminhos.
 - Exceções locais justificadas:
 
 ## Previews SwiftUI

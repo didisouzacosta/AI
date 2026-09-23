@@ -9,4 +9,4 @@ project="$(cd "$path" 2>/dev/null && git rev-parse --show-toplevel)" || { echo "
 [[ -d "$project/.ai/shared" ]] || { echo "Erro: .ai/shared não está configurado; execute ai-bootstrap." >&2; exit 1; }
 cd "$project"
 bash "$root/scripts/setup-consumer.sh" --update
-echo "Dependência AI atualizada. Revise e registre .ai/shared, .ai/managed-files.sha256, .codex e .agents."
+echo "Dependência AI atualizada. Revise e registre .ai/shared, .ai/managed-files.sha256, .codex, .agents, .swiftlint.yml, .swift-format, scripts de lint e o workflow Swift."
