@@ -10,7 +10,6 @@ setup_args=(--update); path=""
 for arg in "$@"; do case "$arg" in --adopt-lint-config) setup_args+=("$arg");; -*) usage >&2; exit 2;; *) [[ -z "$path" ]] || { usage >&2; exit 2; }; path="$arg";; esac; done
 path="${path:-.}"
 project="$(cd "$path" 2>/dev/null && git rev-parse --show-toplevel)" || { echo "Erro: '$path' deve estar em um projeto Git." >&2; exit 1; }
-[[ ! -e "$project/ai" && ! -L "$project/ai" ]] || { echo "Erro: layout legado ai detectado; faça a migração manual." >&2; exit 1; }
 [[ -d "$project/.ai/shared" ]] || { echo "Erro: .ai/shared não está configurado; execute ai-bootstrap." >&2; exit 1; }
 cd "$project"
 bash "$root/scripts/setup-consumer.sh" "${setup_args[@]}"

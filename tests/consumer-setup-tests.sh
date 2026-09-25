@@ -48,7 +48,6 @@ test_lint_tooling_distribution() {
     copy "$p/$rel" "$SEED/$source_rel"
     grep -Fq "  $rel" "$p/.ai/managed-files.sha256" || fail "manifest-$rel"
   done
-  [[ ! -e "$p/.swift-format" ]] || fail legacy-swift-format-installed
   for rel in test-required-type-marks.sh test-swift-spacing.sh; do [[ ! -e "$p/scripts/$rel" ]] || fail "base-only-test-installed-$rel"; done
   for rel in lint-swift.sh fix-swift-spacing.pl install-swift-tools.sh add-type-marks.py; do
     [[ -x "$p/scripts/$rel" ]] || fail "lint-scripts-executable-$rel"
@@ -145,7 +144,6 @@ test_lint_config_adoption() {
   # Simulate a consumer whose lint configuration predates the managed files.
   grep -v '  \.swiftlint\.yml$' "$manifest" > "$TMP/manifest"; cp "$TMP/manifest" "$manifest"
   printf 'consumer lint rules\n' > "$p/.swiftlint.yml"
-  printf 'unmanaged formatter\n' > "$p/.swift-format"
   if run_update "$p"; then fail adopt-requires-flag; fi
   grep -Fq -- '--adopt-lint-config' "$TMP/out" || { cat "$TMP/out"; fail adopt-hint; }
   [[ "$(<"$p/.swiftlint.yml")" == 'consumer lint rules' && ! -e "$p/.swiftlint.yml.local-backup" ]] || fail adopt-conflict-preserves
@@ -153,17 +151,7 @@ test_lint_config_adoption() {
   copy "$p/.swiftlint.yml" "$SEED/.swiftlint.yml"
   [[ "$(<"$p/.swiftlint.yml.local-backup")" == 'consumer lint rules' ]] || fail adopt-backup
   grep -Fq '  .swiftlint.yml' "$manifest" || fail adopt-manifest
-  [[ ! -e "$p/.swift-format" && "$(<"$p/.swift-format.local-backup")" == 'unmanaged formatter' ]] || fail adopt-legacy-formatter
-  rm -f "$p/.swift-format.local-backup"
   run_update "$p" || { cat "$TMP/out"; fail adopt-idempotent-update; }
-  # A consumer managed by the swift-format era loses the legacy file on update.
-  printf 'legacy formatter\n' > "$p/.swift-format"
-  { cat "$manifest"; printf '%s  .swift-format\n' "$(shasum -a 256 "$p/.swift-format" | awk '{print $1}')"; } \
-    | awk '{ print substr($0, 67) "\t" $0 }' | LC_ALL=C sort | cut -f2- > "$TMP/manifest"
-  cp "$TMP/manifest" "$manifest"
-  run_update "$p" || { cat "$TMP/out"; fail legacy-formatter-update; }
-  [[ ! -e "$p/.swift-format" ]] || fail legacy-formatter-removed
-  if grep -Fq '  .swift-format' "$manifest"; then fail legacy-formatter-manifest; fi
   grep -v '  \.swiftlint\.yml$' "$manifest" > "$TMP/manifest"; cp "$TMP/manifest" "$manifest"
   printf 'consumer lint rules again\n' > "$p/.swiftlint.yml"
   if run_update_adopt "$p"; then fail adopt-existing-backup; fi
@@ -174,7 +162,7 @@ test_adoption_rollback() {
   consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail adopt-rollback-bootstrap; }
   manifest="$p/.ai/managed-files.sha256"
   grep -v '  \.swiftlint\.yml$' "$manifest" > "$TMP/manifest"; cp "$TMP/manifest" "$manifest"
-  printf 'consumer lint rules\n' > "$p/.swiftlint.yml"; printf 'unmanaged formatter\n' > "$p/.swift-format"
+  printf 'consumer lint rules\n' > "$p/.swiftlint.yml"
   snapshot "$p" "$before"
   if (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_FAIL_AT=during-copy \
     bash "$ROOT/scripts/update-consumer.sh" --adopt-lint-config) > "$TMP/out" 2>&1; then fail adopt-rollback; fi
@@ -248,7 +236,6 @@ test_layout_and_idempotence() {
 test_backup_and_preflight() {
   local p="$TMP/backup"; consumer "$p"; printf local > "$p/AGENTS.md"; run_bootstrap "$p" || fail backup; [[ "$(<"$p/AGENTS_backup.md")" == local ]] || fail backup-content
   local q="$TMP/backup-conflict"; consumer "$q"; printf local > "$q/AGENTS.md"; printf old > "$q/AGENTS_backup.md"; if run_bootstrap "$q"; then fail backup-conflict; fi; [[ ! -e "$q/.ai/shared" ]] || fail preflight-mutation
-  local r="$TMP/legacy"; consumer "$r"; mkdir "$r/ai"; if run_bootstrap "$r"; then fail legacy; fi; [[ ! -e "$r/.ai/shared" ]] || fail legacy-mutation
 }
 test_documents_and_conflicts() {
   local p="$TMP/documents"; consumer "$p"; mkdir "$p/.ai"; printf own > "$p/.ai/PROJECT_BRIEF.md"; printf own-guide > "$p/.ai/PROJECT_GUIDE.md"; run_bootstrap "$p" || fail docs; [[ "$(<"$p/.ai/PROJECT_BRIEF.md")" == own && "$(<"$p/.ai/PROJECT_GUIDE.md")" == own-guide ]] || fail docs-preserved

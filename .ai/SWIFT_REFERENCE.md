@@ -410,8 +410,7 @@ conflito e rollback: `.swiftformat`, `.swiftlint.yml`, `scripts/lint-swift.sh`,
 `scripts/install-swift-tools.sh` e o workflow `.github/workflows/swift-lint.yml`. Um consumidor que já tinha configurações de
 lint próprias, fora do manifesto, usa uma vez `ai-update --adopt-lint-config`
 (ou `ai-bootstrap --adopt-lint-config`): os arquivos locais são preservados
-como `<arquivo>.local-backup` e substituídos pelos compartilhados, e um
-`.swift-format` legado é movido para `.swift-format.local-backup`. Revise e
+como `<arquivo>.local-backup` e substituídos pelos compartilhados. Revise e
 remova os backups depois. Ao final, os dois comandos imprimem os próximos
 passos de adoção (`scripts/consumer-next-steps.txt`).
 

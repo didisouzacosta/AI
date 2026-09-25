@@ -6,7 +6,6 @@ root="$(cd "$(dirname "$source")/.." && pwd)"
 # Keep the local AI checkout on the latest main before running (see self-update-base.sh).
 [[ ! -f "$root/scripts/self-update-base.sh" ]] || { . "$root/scripts/self-update-base.sh"; self_update_base "$root" "$source" "$@"; }
 usage() { echo "Uso: ai-bootstrap [--adopt-lint-config] [CAMINHO_DO_PROJETO]"; }
-[[ "${1:-}" != "--migrate-existing" ]] || { echo "Erro: a migração automática do layout ai foi removida." >&2; exit 2; }
 setup_args=(); path=""
 for arg in "$@"; do case "$arg" in --adopt-lint-config) setup_args+=("$arg");; -*) usage >&2; exit 2;; *) [[ -z "$path" ]] || { usage >&2; exit 2; }; path="$arg";; esac; done
 path="${path:-.}"

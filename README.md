@@ -66,8 +66,8 @@ Depois registre o submodule, os links e as cópias locais no Git. O bootstrap pr
 do consumidor e cria os dois documentos apenas quando estiverem ausentes.
 
 Se já houver `AGENTS.md`, ele é salvo como `AGENTS_backup.md`. O comando para
-antes de modificar o projeto se esse backup já existir, se houver
-`AGENTS.override.md` ou se o caminho legado `ai` estiver presente.
+antes de modificar o projeto se esse backup já existir ou se houver
+`AGENTS.override.md`.
 
 ## Atualizar
 
@@ -89,8 +89,7 @@ configuração compartilhada uma única vez, com backup `<arquivo>.local-backup`
 ai-update --adopt-lint-config
 ```
 
-`ai-bootstrap` aceita a mesma flag. Um `.swift-format` legado é movido para
-`.swift-format.local-backup`. Ao final, os dois comandos imprimem os passos de
+`ai-bootstrap` aceita a mesma flag. Ao final, os dois comandos imprimem os passos de
 adoção: instalar as ferramentas, `scripts/lint-swift.sh --fix`,
 `scripts/lint-swift.sh --add-marks`, verificar e integrar ao CI/Xcode.
 
