@@ -71,15 +71,16 @@ dependências, navegação, persistência e integrações externas.
 ## Estilo e formatação Swift
 
 - Convenção geral: [Google Swift Style Guide](https://google.github.io/swift/),
-  aplicada a todo código Swift, incluindo arquivos sem SwiftUI e testes.
+  com a exceção declarada de 4 espaços e 120 colunas, aplicada a todo código Swift, incluindo testes.
 - Cadeias de modificadores SwiftUI: cada modificador em sua própria linha,
   conforme os exemplos da Apple em
   [Configuring Views](https://developer.apple.com/documentation/swiftui/configuring-views).
-- Bootstrap/update sincronizam `.swiftlint.yml` e `.swift-format` com manifesto e proteção de conflitos.
-- Baseline desta base: SwiftLint 0.63.2 e `xcrun swift-format` 6.3.0 do Xcode 26.6; confirme compatibilidade no consumidor.
+- `MARK:` obrigatório e espaçamento entre blocos conforme `SWIFT_REFERENCE.md`.
+- Bootstrap/update sincronizam `.swiftlint.yml`, `.swiftformat`, `scripts/lint-swift.sh` e `scripts/fix-swift-spacing.pl` com manifesto e proteção de conflitos.
+- Baseline desta base: SwiftLint 0.63.2 e SwiftFormat 0.63.0; confirme a instalação no consumidor e no CI.
 - `scripts/lint-swift.sh` é o gate executável local/CI, verifica versões e cobre somente fontes, testes e `Package.swift` nos caminhos do consumidor. Conecte esse comando ao job obrigatório de CI do projeto.
 - Bootstrap/update também sincronizam `.github/workflows/swift-lint.yml`; o workflow da base fica em arquivo separado porque esta base não contém Swift.
-- Formate desde a criação: `xcrun swift-format format --in-place --configuration .swift-format --recursive` sobre os mesmos caminhos.
+- Formate desde a criação: `scripts/lint-swift.sh --fix`.
 - Exceções locais justificadas:
 
 ## Previews SwiftUI

@@ -2,9 +2,16 @@
 set -euo pipefail
 
 readonly SWIFTLINT_VERSION="0.63.2"
-readonly SWIFT_FORMAT_VERSION="6.3.0"
+readonly SWIFTFORMAT_VERSION="0.63.0"
 readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+
+mode=lint
+case "${1:-}" in
+  "") ;;
+  --fix) mode=fix ;;
+  *) echo "Usage: scripts/lint-swift.sh [--fix]" >&2; exit 2 ;;
+esac
 
 swift_paths=()
 swift_path_count=0
@@ -97,22 +104,37 @@ command -v swiftlint >/dev/null 2>&1 || {
   echo "SwiftLint $SWIFTLINT_VERSION is required; install it before running this gate." >&2
   exit 1
 }
-command -v xcrun >/dev/null 2>&1 || {
-  echo "Xcode with swift-format $SWIFT_FORMAT_VERSION is required; select Xcode first." >&2
+command -v swiftformat >/dev/null 2>&1 || {
+  echo "SwiftFormat $SWIFTFORMAT_VERSION is required; install it before running this gate." >&2
+  exit 1
+}
+command -v perl >/dev/null 2>&1 || {
+  echo "perl is required by scripts/fix-swift-spacing.pl." >&2
   exit 1
 }
 
 actual_swiftlint="$(swiftlint version)"
-actual_swift_format="$(xcrun swift-format --version | awk '{print $NF}')"
+actual_swiftformat="$(swiftformat --version)"
 [[ "$actual_swiftlint" == "$SWIFTLINT_VERSION" ]] || {
   echo "Expected SwiftLint $SWIFTLINT_VERSION; found $actual_swiftlint" >&2
   exit 1
 }
-[[ "$actual_swift_format" == "$SWIFT_FORMAT_VERSION" ]] || {
-  echo "Expected swift-format $SWIFT_FORMAT_VERSION; found $actual_swift_format" >&2
+[[ "$actual_swiftformat" == "$SWIFTFORMAT_VERSION" ]] || {
+  echo "Expected SwiftFormat $SWIFTFORMAT_VERSION; found $actual_swiftformat" >&2
   exit 1
 }
 
+if [[ "$mode" == fix ]]; then
+  # SwiftFormat owns layout; the spacing fixer inserts the blank lines SwiftFormat cannot
+  # express; SwiftLint applies its correctable rules; a final SwiftFormat pass stabilizes.
+  echo "Formatting Swift files at paths ${swift_paths[*]}"
+  swiftformat --quiet --config .swiftformat "${swift_paths[@]}"
+  perl scripts/fix-swift-spacing.pl "${swift_paths[@]}"
+  swiftlint lint --fix --quiet --no-cache --config .swiftlint.yml "${swift_paths[@]}"
+  swiftformat --quiet --config .swiftformat "${swift_paths[@]}"
+  perl scripts/fix-swift-spacing.pl "${swift_paths[@]}"
+fi
+
 echo "Linting Swift files at paths ${swift_paths[*]}"
+swiftformat --lint --config .swiftformat "${swift_paths[@]}"
 swiftlint lint --strict --no-cache --config .swiftlint.yml "${swift_paths[@]}"
-xcrun swift-format lint --strict --configuration .swift-format "${swift_paths[@]}"

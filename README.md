@@ -11,8 +11,9 @@ AI/
 ├── .codex/agents/               # sol.toml e luna.toml
 ├── .agents/skills/              # sete skills completas
 ├── .swiftlint.yml               # baseline SwiftLint
-├── .swift-format                # regras de formatação Swift
-├── scripts/lint-swift.sh        # gate estrito local/CI
+├── .swiftformat                 # SwiftFormat: formatador único
+├── scripts/lint-swift.sh        # gate estrito local/CI (--fix formata)
+├── scripts/fix-swift-spacing.pl # corrige o espaçamento entre blocos
 ├── templates/swift-lint.yml     # workflow instalado nos consumidores
 └── .github/workflows/ai-base-checks.yml
 ```
@@ -46,9 +47,11 @@ MeuProjeto/
 ├── .codex/agents/               # cópias locais de sol.toml e luna.toml
 ├── .agents/skills/              # cópias locais das skills compartilhadas
 ├── .swiftlint.yml
-├── .swift-format
+├── .swiftformat
 ├── scripts/lint-swift.sh
-├── scripts/test-required-class-marks.sh
+├── scripts/fix-swift-spacing.pl
+├── scripts/test-required-type-marks.sh
+├── scripts/test-swift-spacing.sh
 └── .github/workflows/swift-lint.yml
 ```
 
@@ -71,7 +74,22 @@ O update avança `.ai/shared` para `main`, verifica o manifesto
 `.ai/managed-files.sha256` e sincroniza agentes, skills, configurações de lint
 e formatter, scripts do gate e o workflow Swift. O gate cobre fontes, testes e
 `Package.swift` dos caminhos do consumidor sem percorrer caches ou submodules.
-Uma edição local de arquivo gerenciado interrompe a atualização; arquivos extras permanecem intactos. Nenhum comando escreve em
+Uma edição local de arquivo gerenciado interrompe a atualização; arquivos extras permanecem intactos.
+
+Se o consumidor já tinha `.swiftlint.yml`, `.swiftformat` ou scripts de lint
+próprios fora do manifesto, o update para com conflito. Para adotar a
+configuração compartilhada uma única vez, com backup `<arquivo>.local-backup`:
+
+```bash
+ai-update --adopt-lint-config
+```
+
+Depois do update, formate e verifique o código do consumidor:
+
+```bash
+scripts/lint-swift.sh --fix
+scripts/lint-swift.sh
+``` Nenhum comando escreve em
 `~/.codex/agents` ou respeita `CODEX_CONFIG_DIR` para instalar agentes globais.
 
 Os nomes de despacho são `sol` (Manager, `gpt-6-sol` com esforço `high`) e

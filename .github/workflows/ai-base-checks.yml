@@ -26,8 +26,20 @@ jobs:
           chmod +x "$RUNNER_TEMP/swiftlint/swiftlint"
           echo "$RUNNER_TEMP/swiftlint" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/swiftlint/swiftlint" version | grep -Fx '0.63.2'
-      - name: Test consumer setup, lint gate, and MARK fixtures
+      - name: Install SwiftFormat 0.63.0
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/nicklockwood/SwiftFormat/releases/download/0.63.0/swiftformat.zip \
+            --output "$RUNNER_TEMP/swiftformat.zip"
+          mkdir "$RUNNER_TEMP/swiftformat"
+          unzip -q "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat"
+          chmod +x "$RUNNER_TEMP/swiftformat/swiftformat"
+          echo "$RUNNER_TEMP/swiftformat" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/swiftformat/swiftformat" --version | grep -Fx '0.63.0'
+      - name: Test consumer setup, lint gate, MARK and spacing fixtures
         run: |
           bash -n scripts/*.sh tests/*.sh
-          scripts/test-required-class-marks.sh
+          perl -c scripts/fix-swift-spacing.pl
+          scripts/test-required-type-marks.sh
+          scripts/test-swift-spacing.sh
           bash tests/consumer-setup-tests.sh

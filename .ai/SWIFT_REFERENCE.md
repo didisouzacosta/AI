@@ -284,107 +284,178 @@ Use `equatable()` apenas quando a comparação for mais barata que a recomputaç
 - Adote o [Google Swift Style Guide](https://google.github.io/swift/) como
   convenção geral para todo código Swift do projeto: arquivos com SwiftUI,
   arquivos Swift puro e testes. Não crie um estilo separado para arquivos que
-  importam somente Foundation ou outras bibliotecas sem UI; a mesma referência
-  cobre declarações, nomes, organização, comentários e formatação Swift.
+  importam somente Foundation ou outras bibliotecas sem UI.
+- **Exceção declarada ao Google Style:** indentação de 4 espaços e largura de
+  120 colunas, o padrão do Xcode. Argumentos, parâmetros, coleções e condições
+  que não cabem na linha quebram antes do primeiro elemento, um por linha.
 - Em cadeias de modificadores SwiftUI, siga os exemplos da Apple em
   [Configuring Views](https://developer.apple.com/documentation/swiftui/configuring-views):
   coloque cada modificador em sua própria linha, encadeado à View ou ao
-  modificador anterior. Essa regra específica de legibilidade complementa o
-  estilo geral e deve ser aplicada também quando a cadeia caberia em uma linha.
-- Configure `.swift-format` para aplicar e verificar a convenção adotada sem
-  alterar a semântica das regras. `ai-bootstrap` cria `.swiftlint.yml` e
-  `.swift-format` no consumidor; `ai-update` os sincroniza com proteção de
-  manifesto, conflito local e rollback, como os demais arquivos gerenciados.
-  Ambos também instalam/atualizam `scripts/lint-swift.sh`, os fixtures de MARK
-  e o workflow de consumidor `.github/workflows/swift-lint.yml` a partir do
-  template compartilhado. A base AI mantém seu workflow de testes próprio
-  porque não contém código Swift.
-  Ajuste as configurações ao layout real sem desabilitar verificações para
-  esconder violações. Registre no guia do consumidor as versões e os comandos
-  usados no desenvolvimento e no CI. Preserve exceções locais justificadas
-  quando uma regra do formatador não puder representar fielmente a convenção.
+  modificador anterior, mesmo quando a cadeia caberia em uma linha.
 - Use nomes que expressem domínio e intenção; evite `Manager`, `Helper` ou `Service` genéricos quando uma responsabilidade mais precisa for possível.
-- Desde o início da construção, toda declaração `class` deve começar seu corpo com uma seção `// MARK: - <responsabilidade>` que nomeie a responsabilidade do tipo; isso vale mesmo para classes curtas e testes. Não conte um comentário `MARK:` antes da declaração como seção da classe. Marque também cada classe aninhada. Acrescente outras seções `MARK:` quando separar responsabilidades reais e mantenha a ordem das declarações previsível.
-- Não deixe para inserir os `MARK:` depois da implementação: crie a seção junto com o esqueleto da classe e coloque novas declarações sob a seção correspondente.
 - Cabeçalhos de arquivo, autores e datas seguem a convenção do projeto
-  consumidor. Não invente metadados obrigatórios para uma base compartilhada;
-  para formatação Swift, aplique as regras definidas nesta seção.
-- Mantenha uma linha entre declarações independentes e agrupe modificadores ou propriedades que formam uma única unidade semântica.
+  consumidor. Não invente metadados obrigatórios para uma base compartilhada.
 - Quebre chamadas longas quando a leitura ou a revisão melhorarem; preserve argumentos nomeados e evite alinhamento artificial que gere ruído.
 - Não altere nomes, pastas ou arquitetura existentes apenas para conformá-los a este documento quando isso estiver fora do escopo da tarefa.
 
-## Lint e formatação automática
+### Seções `MARK:` obrigatórias
 
-Projetos consumidores que adotam esta referência devem usar SwiftLint e
-`swift-format`. SwiftLint verifica convenções, práticas de segurança e sinais
-de complexidade; `swift-format` aplica e verifica regras mecânicas de estilo e
-formatação. As configurações ficam no projeto consumidor, junto ao código:
-`.swiftlint.yml` para SwiftLint e `.swift-format` para `swift-format`. Esta base
-distribui uma configuração compartilhada e gerenciada pelo bootstrap/update;
-adapte somente ao layout real do consumidor sem enfraquecer os gates.
+- Toda declaração `class`, `actor`, `struct`, `enum` e `extension` cujo corpo
+  tenha 10 linhas ou mais começa com uma linha em branco seguida de
+  `// MARK: - <responsabilidade>`. Isso vale para tipos aninhados e testes.
+  Tipos menores ficam isentos, mas podem usar `MARK:` quando ajudar a leitura.
+- Um `MARK:` antes da declaração não conta como seção do tipo.
+- Crie a seção junto com o esqueleto do tipo, e não depois da implementação.
+  Acrescente outras seções quando separar responsabilidades reais (por exemplo,
+  `Public Properties`, `Private Properties`, `Initializer`, `Public Methods`,
+  `Private Methods`) e mantenha a ordem das declarações previsível.
+- O nome da seção descreve a responsabilidade; não há correção automática para
+  `MARK:` ausente, porque o nome não pode ser inferido.
 
-Use as versões registradas no `.ai/PROJECT_GUIDE.md`. Para este padrão, a
-baseline é SwiftLint 0.63.2 e `swift-format` 6.3.0, incluído no Xcode 26.6.
-Quando `swift-format` vier do Xcode, invoque-o com `xcrun`:
+```swift
+@MainActor
+@Observable
+final class CaptureViewModel {
 
-```sh
-brew install swiftlint
-swiftlint version
-xcrun swift-format --version
+    // MARK: - Public Properties
+
+    let configuration: CaptureConfiguration
+
+    var isRecording = false
+
+    // MARK: - Public Methods
+
+    func startRecording() { ... }
+}
 ```
 
-Execute ambos desde a raiz do consumidor, passando apenas os diretórios Swift
-e o manifesto de pacote reais. Inclua fontes, testes e `Package.swift`; não
-varra `.ai/shared`, caches ou diretórios fora do produto. Um script de gate do
-projeto deve fixar e verificar as versões e rodar os dois comandos em modo
-strict localmente e no CI. Para uma estrutura SwiftPM, por exemplo, passe
-explicitamente os caminhos reais do projeto e do pacote:
+### Espaçamento entre blocos
+
+O código é lido em blocos: declarações, validações, laços e decisões. Uma
+linha em branco separa cada bloco para que o leitor enxergue as etapas sem
+ler cada linha.
+
+- **Grupos de `let` e de `var`:** declarações `let` e `var` não se misturam
+  no mesmo grupo, nem em membros de tipo nem em corpos de função. Os `let`
+  formam um grupo, os `var` outro, separados por uma linha em branco.
+  Propriedades armazenadas também são separadas por uma linha em branco do
+  primeiro `init`, `func` ou tipo seguinte.
+- **Antes de um bloco:** `if`, `guard`, `for`, `while`, `switch`, `do`,
+  `repeat` e `defer` são precedidos por uma linha em branco, exceto quando são
+  a primeira instrução do escopo (logo após `{`, `in` ou `case ...:`).
+- **Depois de um bloco:** a instrução que segue um `}` na mesma indentação é
+  precedida por uma linha em branco. `else`, `catch`, `case`, `default`,
+  fechamentos (`}`, `)`, `]`) e modificadores encadeados (`.padding()`) não
+  contam como nova instrução.
+- **Guards:** cada `guard` é seguido por uma linha em branco, inclusive entre
+  guards consecutivos.
+- **Switch:** casos com corpo de várias linhas são separados por uma linha em
+  branco.
+- Não comprima código para caber em limites de tamanho de função ou tipo; se
+  um limite for atingido, extraia uma função com responsabilidade própria.
+
+```swift
+// Errado
+func load(_ input: Int?) -> Int {
+    let base = 1
+    var total = 0
+    guard let input else {
+        return base
+    }
+    for value in 0..<input {
+        total += value
+    }
+    return total + base
+}
+
+// Certo
+func load(_ input: Int?) -> Int {
+    let base = 1
+
+    var total = 0
+
+    guard let input else {
+        return base
+    }
+
+    for value in 0..<input {
+        total += value
+    }
+
+    return total + base
+}
+```
+
+## Lint e formatação automática
+
+Projetos consumidores que adotam esta referência usam **SwiftFormat** e
+**SwiftLint**, com responsabilidades separadas:
+
+| Ferramenta | Responsabilidade |
+|---|---|
+| SwiftFormat (`.swiftformat`) | Único formatador: indentação, largura, quebras de linha, imports, chaves, linhas em branco depois de `guard`, entre casos de `switch`, entre escopos e em volta de `MARK:` |
+| SwiftLint (`.swiftlint.yml`) | Convenções, segurança (`force_unwrapping`, `force_try`), complexidade, ordem dos membros, `MARK:` obrigatório e as regras de espaçamento que o SwiftFormat não expressa |
+| `scripts/fix-swift-spacing.pl` | Corrige automaticamente as regras custom de espaçamento do SwiftLint (`blank_line_before_block`, `blank_line_after_block`, `let_var_group_separation` e o caso de `let_var_whitespace` antes de declarações) |
+
+O `swift-format` da Apple não é usado: ele não insere linhas em branco e
+entraria em conflito com o SwiftFormat nas quebras de linha. As regras do
+SwiftFormat que alteram comportamento, API ou nomes (por exemplo
+`redundantSelf`, `redundantAsync`, `redundantMemberwiseInit`,
+`swiftTestingTestCaseNames`, `unusedArguments`) ficam desativadas: o
+formatador só altera layout e grafia puramente sintática.
+
+`ai-bootstrap` instala e `ai-update` sincroniza, com manifesto, proteção de
+conflito e rollback: `.swiftformat`, `.swiftlint.yml`, `scripts/lint-swift.sh`,
+`scripts/fix-swift-spacing.pl`, os testes de fixtures e o workflow
+`.github/workflows/swift-lint.yml`. Um consumidor que já tinha configurações de
+lint próprias, fora do manifesto, usa uma vez `ai-update --adopt-lint-config`:
+os arquivos locais são preservados como `<arquivo>.local-backup` e substituídos
+pelos compartilhados. Remova o `.swift-format` legado quando ele não for mais
+usado.
+
+A baseline é SwiftLint 0.63.2 e SwiftFormat 0.63.0, instalados com Homebrew:
 
 ```sh
-swiftlint lint --strict --no-cache --config .swiftlint.yml Sources Tests Package.swift
-xcrun swift-format lint --strict --configuration .swift-format --recursive Sources Tests Package.swift
+brew install swiftlint swiftformat
+swiftlint version
+swiftformat --version
 ```
 
 O gate distribuído é `scripts/lint-swift.sh`. Ele coleta as raízes `Sources/`
 e `Tests/` do projeto e dos apps, os diretórios `Sources/` e `Tests/` de cada
-pacote em `Packages/`, e os respectivos `Package.swift`; também aceita
-`Sources/`, `Tests/` e `Package.swift` na raiz. Ele ignora submodules
-registrados, `.ai/shared`, caches e pastas fora dessas raízes. Execute-o antes
-de concluir cada alteração Swift e no CI. O script termina com erro se não
-encontrar nenhum caminho Swift no layout suportado.
-
-Atualizações de versão revisam configurações e diagnósticos antes de serem
-aceitas. Para formatar, use a mesma configuração e caminhos:
+pacote em `Packages/`, e os respectivos `Package.swift`; ignora submodules
+registrados, `.ai/shared`, caches e pastas fora dessas raízes; verifica as
+versões e roda `swiftformat --lint` e `swiftlint lint --strict`. Execute-o antes
+de concluir cada alteração Swift e no CI. Para formatar e corrigir o
+espaçamento, use o modo `--fix`, que aplica SwiftFormat, o fixer de
+espaçamento, `swiftlint --fix` e uma passada final de SwiftFormat antes de
+verificar:
 
 ```sh
-xcrun swift-format format --in-place --configuration .swift-format --recursive Sources Tests Package.swift
+scripts/lint-swift.sh --fix
+scripts/lint-swift.sh
 ```
 
-A regra `required_class_mark` do SwiftLint verifica declarações de classe no
-formato Swift convencional usado pelo formatter: atributos/modificadores antes
-da declaração, abertura do corpo com `{` na mesma linha, e `// MARK:` como
-primeira linha dentro do corpo. Os fixtures do gate cobrem classe curta,
-atributos e modificadores, comentários externos e classes aninhadas. Regex do
-SwiftLint não é parser de Swift e não cobre qualquer sintaxe futura ou quebras
-atípicas; por isso, revise manualmente todas as classes e seus `MARK:` no diff.
-A regra automática complementa esse checklist e não substitui a revisão.
-Para conferir os casos automatizados, execute `scripts/test-required-class-marks.sh`.
+Revise o diff produzido antes de registrá-lo e mantenha a formatação em massa
+em um commit separado de mudanças de comportamento.
 
-Revise o diff produzido antes de registrá-lo. Distribua as responsabilidades
-para evitar diagnósticos duplicados:
+As regras custom do SwiftLint usam regex, não um parser de Swift. Elas cobrem
+o formato produzido pelo formatter (atributos e modificadores antes da
+declaração, `{` na mesma linha) e não cobrem sintaxe atípica. Revise também
+manualmente os `MARK:` e o espaçamento no diff. Os fixtures ficam em
+`scripts/test-required-type-marks.sh` e `scripts/test-swift-spacing.sh`.
 
-- Em SwiftLint, preserve as regras padrão de convenções e configure regras de
-  segurança e complexidade. Ative `force_unwrapping` e `force_try`, inclua
-  nomes claros e limites razoáveis de tamanho de arquivo, tipo, função e
-  closure. Ajuste limites à estrutura real do projeto, sem usá-los para exigir
-  fragmentação artificial.
-- Em `swift-format`, mantenha regras coerentes de indentação, espaços, quebras
-  de linha, chaves, organização de imports e comentários de documentação. Use
-  a mesma configuração para formatar e verificar, evitando divergência entre
-  o resultado do formatter e o linter.
-- Desative ou ajuste em SwiftLint as regras de layout que se sobreponham às
-  regras de formatação escolhidas em `swift-format`. Não use a formatação
-  automática como substituto da revisão de mudanças semânticas.
+Distribua as responsabilidades para evitar diagnósticos duplicados:
+
+- Em SwiftLint, preserve as regras padrão de convenções e as regras de
+  segurança e complexidade. Os limites (`function_body_length` 60/100,
+  `type_body_length` 350/500, `file_length` 500/700) consideram o layout
+  vertical exigido por esta referência; não os use para exigir fragmentação
+  artificial nem comprima código para cumpri-los.
+- Em SwiftFormat, mantenha as regras de layout coerentes com esta referência e
+  use a mesma configuração para formatar e verificar.
+- Regras de layout do SwiftLint que se sobrepõem ao SwiftFormat ficam
+  desativadas no `.swiftlint.yml` compartilhado.
 - Em SwiftUI, mantenha as regras estruturais desta referência: `body` sem
   efeitos colaterais ou trabalho pesado, estado e ações nos locais definidos
   por MVVM, identidade estável nas coleções e controles acessíveis. Como essas
@@ -465,6 +536,9 @@ Use exclusivamente Swift Testing (`import Testing`, `@Test`, `#expect` e `#requi
 - [ ] Previews são determinísticos e não acessam serviços reais.
 - [ ] Testes usam somente Swift Testing e cobrem o contrato alterado.
 - [ ] Segredos e dados sensíveis não entram no repositório ou nos logs.
+- [ ] Tipos e extensions com 10 linhas ou mais abrem com `// MARK: - <responsabilidade>`.
+- [ ] Grupos de `let` e `var` estão separados e cada bloco de controle tem uma linha em branco antes e depois.
+- [ ] `scripts/lint-swift.sh` passou sem violações.
 - [ ] Links, Markdown, diff e arquivos fora do escopo foram verificados.
 
 ## Referências oficiais
@@ -481,5 +555,5 @@ Use exclusivamente Swift Testing (`import Testing`, `@Test`, `#expect` e `#requi
 - [Xcode Build Settings Reference](https://developer.apple.com/documentation/xcode/build-settings-reference)
 - [GlassEffectContainer](https://developer.apple.com/documentation/swiftui/glasseffectcontainer)
 - [SwiftLint: instalação, execução e configuração](https://github.com/realm/SwiftLint)
-- [`swift-format`: instalação e uso](https://github.com/swiftlang/swift-format)
-- [`swift-format`: regras de lint e formatação](https://github.com/swiftlang/swift-format/blob/main/Documentation/RuleDocumentation.md)
+- [SwiftFormat: instalação e uso](https://github.com/nicklockwood/SwiftFormat)
+- [SwiftFormat: regras e opções](https://github.com/nicklockwood/SwiftFormat/blob/main/Rules.md)

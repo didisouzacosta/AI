@@ -70,6 +70,7 @@ Quando uma ferramenta restringir caracteres, diferencie o identificador técnico
 - Rode testes focados durante o desenvolvimento, depois a suíte completa de testes e uma compilação para o iOS Simulator quando o ambiente permitir. Registre comando e resultado; não alegue validação que não foi executada.
 - Simulator e build genérico comprovam compilação, estados e ciclo de vida compatíveis, mas não comprovam comportamento físico do dispositivo, desempenho, térmica, sensores, áudio, permissões ou equivalência a serviços externos. Essas alegações exigem validação no hardware e nos serviços compatíveis descritos no brief.
 - Não adicione dependências de terceiros sem aprovação explícita. Trate avisos do compilador no código alterado como defeitos.
+- Escreva código Swift já no formato de [Organização e estilo](./.ai/SWIFT_REFERENCE.md#organização-e-estilo): `MARK:` obrigatório nos tipos, grupos de `let` e `var` separados e linha em branco entre blocos de lógica. Antes de concluir, rode `scripts/lint-swift.sh --fix` e `scripts/lint-swift.sh` no consumidor e registre o resultado.
 - Não crie testes de UI nem use XCUIAutomation; a estrutura dos testes segue a seção [Testes](./.ai/SWIFT_REFERENCE.md#testes) do manual.
 - Mantenha segredos fora do repositório; as regras de armazenamento seguro ficam na seção [Base técnica e segurança](./.ai/SWIFT_REFERENCE.md#base-técnica-e-segurança) do manual Swift.
 

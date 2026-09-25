@@ -24,5 +24,15 @@ jobs:
           chmod +x "$RUNNER_TEMP/swiftlint/swiftlint"
           echo "$RUNNER_TEMP/swiftlint" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/swiftlint/swiftlint" version | grep -Fx '0.63.2'
+      - name: Install SwiftFormat 0.63.0
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/nicklockwood/SwiftFormat/releases/download/0.63.0/swiftformat.zip \
+            --output "$RUNNER_TEMP/swiftformat.zip"
+          mkdir "$RUNNER_TEMP/swiftformat"
+          unzip -q "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat"
+          chmod +x "$RUNNER_TEMP/swiftformat/swiftformat"
+          echo "$RUNNER_TEMP/swiftformat" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/swiftformat/swiftformat" --version | grep -Fx '0.63.0'
       - name: Verify Swift tooling and lint
         run: scripts/lint-swift.sh
