@@ -6,6 +6,8 @@ TEST_DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode 26.6.app/Contents/Devel
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ai-base-tests.XXXXXX")"
 REMOTE="$TMP/remote.git"; SEED="$TMP/seed"; CONSUMER="$TMP/consumer with spaces"
 trap 'rm -rf "$TMP"' EXIT INT TERM
+# Never pull the real AI checkout from the tests; test_self_update_base opts back in.
+export AI_SKIP_SELF_UPDATE=1
 fail() { echo "FALHA: $*" >&2; exit 1; }
 abslink() { [[ -L "$1" && "$(readlink "$1")" == "$2" ]] || fail "link $1"; }
 copy() { [[ -f "$1" && ! -L "$1" ]] && cmp -s "$1" "$2" || fail "cópia $1"; }
@@ -25,7 +27,7 @@ seed() {
   printf 'luna v1\n' > "$SEED/.codex/agents/luna.toml"; printf 'sol v1\n' > "$SEED/.codex/agents/sol.toml"; printf 'skill v1\n' > "$SEED/.agents/skills/example/SKILL.md"; printf old > "$SEED/.agents/skills/example/a"; printf '\001\002\377' > "$SEED/.agents/skills/example/assets/logo.bin"
   cp "$ROOT/.swiftlint.yml" "$SEED/.swiftlint.yml"
   cp "$ROOT/.swiftformat" "$SEED/.swiftformat"
-  for script in lint-swift.sh fix-swift-spacing.pl test-required-type-marks.sh test-swift-spacing.sh; do
+  for script in lint-swift.sh fix-swift-spacing.pl install-swift-tools.sh add-type-marks.py test-required-type-marks.sh test-swift-spacing.sh; do
     cp "$ROOT/scripts/$script" "$SEED/scripts/$script"; chmod +x "$SEED/scripts/$script"
   done
   cp "$ROOT/templates/swift-lint.yml" "$SEED/templates/swift-lint.yml"
@@ -40,14 +42,15 @@ test_lint_tooling_distribution() {
   printf 'consumer build workflow\n' > "$p/.github/workflows/build.yml"
   run_bootstrap "$p" || { cat "$TMP/out"; fail lint-tooling-bootstrap; }
   for rel in .swiftlint.yml .swiftformat scripts/lint-swift.sh scripts/fix-swift-spacing.pl \
-    scripts/test-required-type-marks.sh scripts/test-swift-spacing.sh .github/workflows/swift-lint.yml; do
+    scripts/install-swift-tools.sh scripts/add-type-marks.py .github/workflows/swift-lint.yml; do
     source_rel="$rel"
     [[ "$rel" != .github/workflows/swift-lint.yml ]] || source_rel=templates/swift-lint.yml
     copy "$p/$rel" "$SEED/$source_rel"
     grep -Fq "  $rel" "$p/.ai/managed-files.sha256" || fail "manifest-$rel"
   done
   [[ ! -e "$p/.swift-format" ]] || fail legacy-swift-format-installed
-  for rel in lint-swift.sh fix-swift-spacing.pl test-required-type-marks.sh test-swift-spacing.sh; do
+  for rel in test-required-type-marks.sh test-swift-spacing.sh; do [[ ! -e "$p/scripts/$rel" ]] || fail "base-only-test-installed-$rel"; done
+  for rel in lint-swift.sh fix-swift-spacing.pl install-swift-tools.sh add-type-marks.py; do
     [[ -x "$p/scripts/$rel" ]] || fail "lint-scripts-executable-$rel"
   done
   [[ "$(<"$p/.github/workflows/build.yml")" == 'consumer build workflow' ]] || fail unrelated-workflow-preserved
@@ -142,6 +145,7 @@ test_lint_config_adoption() {
   # Simulate a consumer whose lint configuration predates the managed files.
   grep -v '  \.swiftlint\.yml$' "$manifest" > "$TMP/manifest"; cp "$TMP/manifest" "$manifest"
   printf 'consumer lint rules\n' > "$p/.swiftlint.yml"
+  printf 'unmanaged formatter\n' > "$p/.swift-format"
   if run_update "$p"; then fail adopt-requires-flag; fi
   grep -Fq -- '--adopt-lint-config' "$TMP/out" || { cat "$TMP/out"; fail adopt-hint; }
   [[ "$(<"$p/.swiftlint.yml")" == 'consumer lint rules' && ! -e "$p/.swiftlint.yml.local-backup" ]] || fail adopt-conflict-preserves
@@ -149,6 +153,8 @@ test_lint_config_adoption() {
   copy "$p/.swiftlint.yml" "$SEED/.swiftlint.yml"
   [[ "$(<"$p/.swiftlint.yml.local-backup")" == 'consumer lint rules' ]] || fail adopt-backup
   grep -Fq '  .swiftlint.yml' "$manifest" || fail adopt-manifest
+  [[ ! -e "$p/.swift-format" && "$(<"$p/.swift-format.local-backup")" == 'unmanaged formatter' ]] || fail adopt-legacy-formatter
+  rm -f "$p/.swift-format.local-backup"
   run_update "$p" || { cat "$TMP/out"; fail adopt-idempotent-update; }
   # A consumer managed by the swift-format era loses the legacy file on update.
   printf 'legacy formatter\n' > "$p/.swift-format"
@@ -162,6 +168,76 @@ test_lint_config_adoption() {
   printf 'consumer lint rules again\n' > "$p/.swiftlint.yml"
   if run_update_adopt "$p"; then fail adopt-existing-backup; fi
   [[ "$(<"$p/.swiftlint.yml")" == 'consumer lint rules again' ]] || fail adopt-existing-backup-preserves
+}
+test_adoption_rollback() {
+  local p="$TMP/adopt rollback" manifest before="$TMP/adopt-rollback-before"
+  consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail adopt-rollback-bootstrap; }
+  manifest="$p/.ai/managed-files.sha256"
+  grep -v '  \.swiftlint\.yml$' "$manifest" > "$TMP/manifest"; cp "$TMP/manifest" "$manifest"
+  printf 'consumer lint rules\n' > "$p/.swiftlint.yml"; printf 'unmanaged formatter\n' > "$p/.swift-format"
+  snapshot "$p" "$before"
+  if (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_FAIL_AT=during-copy \
+    bash "$ROOT/scripts/update-consumer.sh" --adopt-lint-config) > "$TMP/out" 2>&1; then fail adopt-rollback; fi
+  snapshot "$p" "$TMP/adopt-rollback-after"
+  cmp -s "$before" "$TMP/adopt-rollback-after" || { diff -u "$before" "$TMP/adopt-rollback-after" >&2 || true; fail adopt-rollback-state; }
+}
+test_setup_runs_from_main() {
+  local p="$TMP/reexec consumer"
+  consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail reexec-bootstrap; }
+  mkdir -p "$SEED/scripts"
+  { head -n 2 "$ROOT/scripts/setup-consumer.sh"; echo 'echo "setup from main" >&2'; tail -n +3 "$ROOT/scripts/setup-consumer.sh"; } > "$SEED/scripts/setup-consumer.sh"
+  git -C "$SEED" add -A; git -C "$SEED" commit -m reexec >/dev/null; git -C "$SEED" push >/dev/null
+  run_update "$p" || { cat "$TMP/out"; fail reexec-update; }
+  grep -Fq 'setup from main' "$TMP/out" || { cat "$TMP/out"; fail reexec-main-script; }
+  grep -Fq 'desatualizada' "$TMP/out" || fail reexec-warning
+  if ls "${TMPDIR:-/tmp}"/ai-setup.* >/dev/null 2>&1; then fail reexec-temp-cleanup; fi
+  git -C "$SEED" rm -q scripts/setup-consumer.sh; git -C "$SEED" commit -m unreexec >/dev/null; git -C "$SEED" push >/dev/null
+}
+test_self_update_base() {
+  local origin="$TMP/ai-origin.git" local_ai="$TMP/local-ai" publisher="$TMP/ai-publisher" p="$TMP/self-update consumer" head
+  git init -q "$TMP/ai-source"; cp -R "$ROOT/scripts" "$TMP/ai-source/scripts"
+  git -C "$TMP/ai-source" -c user.email=test@example.com -c user.name=Tests add -A
+  git -C "$TMP/ai-source" -c user.email=test@example.com -c user.name=Tests commit -qm base
+  git -C "$TMP/ai-source" branch -M main
+  git clone -q --bare "$TMP/ai-source" "$origin"
+  git clone -q "$origin" "$local_ai"; git clone -q "$origin" "$publisher"
+  { head -n 2 "$publisher/scripts/update-consumer.sh"; echo 'echo "update from pulled base" >&2'; tail -n +3 "$publisher/scripts/update-consumer.sh"; } > "$TMP/update.sh"
+  cp "$TMP/update.sh" "$publisher/scripts/update-consumer.sh"
+  git -C "$publisher" -c user.email=test@example.com -c user.name=Tests commit -qam 'newer base'
+  git -C "$publisher" push -q origin main
+  consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail self-update-bootstrap; }
+  printf 'local edit\n' >> "$local_ai/scripts/consumer-next-steps.txt"
+  (cd "$p" && env -u AI_SKIP_SELF_UPDATE GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" \
+    bash "$local_ai/scripts/update-consumer.sh") > "$TMP/out" 2>&1 || { cat "$TMP/out"; fail self-update-dirty-run; }
+  grep -Fq 'alterações locais' "$TMP/out" || { cat "$TMP/out"; fail self-update-dirty-warning; }
+  if grep -Fq 'update from pulled base' "$TMP/out"; then fail self-update-dirty-pulled; fi
+  git -C "$local_ai" checkout -q -- scripts/consumer-next-steps.txt
+  (cd "$p" && env -u AI_SKIP_SELF_UPDATE GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" \
+    bash "$local_ai/scripts/update-consumer.sh") > "$TMP/out" 2>&1 || { cat "$TMP/out"; fail self-update-run; }
+  grep -Fq 'Base AI atualizada' "$TMP/out" || { cat "$TMP/out"; fail self-update-message; }
+  grep -Fq 'update from pulled base' "$TMP/out" || { cat "$TMP/out"; fail self-update-reexec; }
+  [[ "$(grep -Fc 'update from pulled base' "$TMP/out")" == 1 ]] || fail self-update-single-reexec
+  head="$(git -C "$local_ai" rev-parse HEAD)"
+  [[ "$head" == "$(git -C "$origin" rev-parse main)" ]] || fail self-update-fast-forward
+}
+test_claude_skills() {
+  local p="$TMP/claude consumer" q="$TMP/claude existing" r="$TMP/claude rollback" before="$TMP/claude-before"
+  consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail claude-bootstrap; }
+  abslink "$p/.claude/skills/example" '../../.agents/skills/example'
+  [[ -f "$p/.claude/skills/example/SKILL.md" ]] || fail claude-skill-resolves
+  grep -Fqx '@AGENTS.md' "$p/CLAUDE.md" || fail claude-md-import
+  git -C "$p" add -A; run_update "$p" || { cat "$TMP/out"; fail claude-idempotent-update; }
+  git -C "$p" diff --quiet -- .claude CLAUDE.md && [[ -z "$(git -C "$p" ls-files --others --exclude-standard -- .claude CLAUDE.md)" ]] || fail claude-idempotent-state
+  consumer "$q"; printf 'consumer claude rules\n' > "$q/CLAUDE.md"; mkdir -p "$q/.claude/skills/example"
+  printf 'local skill\n' > "$q/.claude/skills/example/SKILL.md"
+  run_bootstrap "$q" || { cat "$TMP/out"; fail claude-existing-bootstrap; }
+  [[ "$(<"$q/CLAUDE.md")" == 'consumer claude rules' && "$(<"$q/.claude/skills/example/SKILL.md")" == 'local skill' ]] || fail claude-existing-preserved
+  grep -Fq '.claude/skills/example já existe' "$TMP/out" || fail claude-existing-warning
+  consumer "$r"; snapshot "$r" "$before"
+  if run_bootstrap_fail "$r" after-claude-skills; then fail claude-rollback; fi
+  snapshot "$r" "$TMP/claude-after"
+  cmp -s "$before" "$TMP/claude-after" || { diff -u "$before" "$TMP/claude-after" >&2 || true; fail claude-rollback-state; }
+  [[ ! -e "$r/.claude" && ! -e "$r/CLAUDE.md" ]] || fail claude-rollback-files
 }
 test_layout_and_idempotence() {
   consumer "$CONSUMER"; printf 'consumer readme\n' > "$CONSUMER/README.md"; run_bootstrap "$CONSUMER" || { cat "$TMP/out"; fail bootstrap; }
@@ -276,5 +352,5 @@ test_modified_assets_and_special_destinations() {
   consumer "$r"; mkdir -p "$r/.codex/agents"; mkfifo "$r/.codex/agents/luna.toml"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
 }
 test_update_rollback() { local p="$TMP/update-rollback" before="$TMP/update-rollback-before"; consumer "$p"; run_bootstrap "$p" || fail update-rollback-bootstrap; printf remote-change > "$SEED/.agents/skills/example/update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m update-rollback >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; if run_update_fail "$p" after-submodule; then fail update-rollback; fi; snapshot "$p" "$TMP/update-rollback-after"; if ! cmp -s "$before" "$TMP/update-rollback-after"; then diff -u "$before" "$TMP/update-rollback-after" >&2 || true; fail update-rollback-state; fi; }
-seed; test_lint_tooling_distribution; test_lint_config_adoption; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
+seed; test_lint_tooling_distribution; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
 echo 'OK: consumer setup tests'

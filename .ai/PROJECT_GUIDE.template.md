@@ -80,7 +80,9 @@ dependências, navegação, persistência e integrações externas.
 - Baseline desta base: SwiftLint 0.63.2 e SwiftFormat 0.63.0; confirme a instalação no consumidor e no CI.
 - `scripts/lint-swift.sh` é o gate executável local/CI, verifica versões e cobre somente fontes, testes e `Package.swift` nos caminhos do consumidor. Conecte esse comando ao job obrigatório de CI do projeto.
 - Bootstrap/update também sincronizam `.github/workflows/swift-lint.yml`; o workflow da base fica em arquivo separado porque esta base não contém Swift.
-- Formate desde a criação: `scripts/lint-swift.sh --fix`.
+- Formate desde a criação: `scripts/lint-swift.sh --fix`; rascunhe MARKs ausentes com `scripts/lint-swift.sh --add-marks` e revise os nomes.
+- Ferramentas: `brew install swiftlint swiftformat` ou `scripts/install-swift-tools.sh` (versões fixas, usado no CI/Xcode Cloud).
+- Fase de build do Xcode (target sem sandbox de scripts): `scripts/lint-swift.sh --format-only`.
 - Exceções locais justificadas:
 
 ## Previews SwiftUI

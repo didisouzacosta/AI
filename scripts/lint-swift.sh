@@ -6,11 +6,17 @@ readonly SWIFTFORMAT_VERSION="0.63.0"
 readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Xcode build phases and CI do not inherit the interactive PATH: search the pinned
+# download (scripts/install-swift-tools.sh) and Homebrew explicitly.
+export PATH="$ROOT/.build/quality-tools/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 mode=lint
 case "${1:-}" in
   "") ;;
   --fix) mode=fix ;;
-  *) echo "Usage: scripts/lint-swift.sh [--fix]" >&2; exit 2 ;;
+  --format-only) mode=format-only ;;
+  --add-marks) mode=add-marks ;;
+  *) echo "Usage: scripts/lint-swift.sh [--fix | --format-only | --add-marks]" >&2; exit 2 ;;
 esac
 
 swift_paths=()
@@ -100,29 +106,44 @@ if [[ "$swift_path_count" -eq 0 ]]; then
   exit 1
 fi
 
-command -v swiftlint >/dev/null 2>&1 || {
-  echo "SwiftLint $SWIFTLINT_VERSION is required; install it before running this gate." >&2
+readonly INSTALL_HINT="run scripts/install-swift-tools.sh or brew install swiftlint swiftformat"
+
+command -v swiftformat >/dev/null 2>&1 || {
+  echo "SwiftFormat $SWIFTFORMAT_VERSION is required; $INSTALL_HINT." >&2
   exit 1
 }
-command -v swiftformat >/dev/null 2>&1 || {
-  echo "SwiftFormat $SWIFTFORMAT_VERSION is required; install it before running this gate." >&2
+actual_swiftformat="$(swiftformat --version)"
+[[ "$actual_swiftformat" == "$SWIFTFORMAT_VERSION" ]] || {
+  echo "Expected SwiftFormat $SWIFTFORMAT_VERSION; found $actual_swiftformat ($INSTALL_HINT)." >&2
+  exit 1
+}
+
+if [[ "$mode" == format-only ]]; then
+  # Non-mutating layout check for Xcode build phases; SwiftLint runs as the build plugin.
+  swiftformat --lint --quiet --config .swiftformat "${swift_paths[@]}"
+  exit 0
+fi
+
+command -v swiftlint >/dev/null 2>&1 || {
+  echo "SwiftLint $SWIFTLINT_VERSION is required; $INSTALL_HINT." >&2
   exit 1
 }
 command -v perl >/dev/null 2>&1 || {
   echo "perl is required by scripts/fix-swift-spacing.pl." >&2
   exit 1
 }
-
 actual_swiftlint="$(swiftlint version)"
-actual_swiftformat="$(swiftformat --version)"
 [[ "$actual_swiftlint" == "$SWIFTLINT_VERSION" ]] || {
-  echo "Expected SwiftLint $SWIFTLINT_VERSION; found $actual_swiftlint" >&2
+  echo "Expected SwiftLint $SWIFTLINT_VERSION; found $actual_swiftlint ($INSTALL_HINT)." >&2
   exit 1
 }
-[[ "$actual_swiftformat" == "$SWIFTFORMAT_VERSION" ]] || {
-  echo "Expected SwiftFormat $SWIFTFORMAT_VERSION; found $actual_swiftformat" >&2
-  exit 1
-}
+
+if [[ "$mode" == add-marks ]]; then
+  # Drafts the required type MARK sections; review the generated names before committing.
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required by scripts/add-type-marks.py." >&2; exit 1; }
+  python3 scripts/add-type-marks.py "${swift_paths[@]}"
+  exit 0
+fi
 
 if [[ "$mode" == fix ]]; then
   # SwiftFormat owns layout; the spacing fixer inserts the blank lines SwiftFormat cannot
@@ -133,6 +154,7 @@ if [[ "$mode" == fix ]]; then
   swiftlint lint --fix --quiet --no-cache --config .swiftlint.yml "${swift_paths[@]}"
   swiftformat --quiet --config .swiftformat "${swift_paths[@]}"
   perl scripts/fix-swift-spacing.pl "${swift_paths[@]}"
+  echo "Missing type MARK sections are not fixed here; scripts/lint-swift.sh --add-marks drafts them for review."
 fi
 
 echo "Linting Swift files at paths ${swift_paths[*]}"

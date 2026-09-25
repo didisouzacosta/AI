@@ -232,4 +232,43 @@ func value(_ input: Int?) -> Int {
 }
 SWIFT
 
+mkdir "$TMP/drafts"
+cat > "$TMP/drafts/Recorder+FrameProcessing.swift" <<'SWIFT'
+extension Recorder {
+    func first() -> Int {
+        1
+    }
+
+    func second() -> Int {
+        2
+    }
+
+    func third() -> Int {
+        3
+    }
+}
+SWIFT
+cat > "$TMP/drafts/Settings.swift" <<'SWIFT'
+struct Settings {
+    let first = 1
+    let second = 2
+    let third = 3
+    let fourth = 4
+    let fifth = 5
+    let sixth = 6
+    let seventh = 7
+    let eighth = 8
+    let ninth = 9
+    let tenth = 10
+}
+SWIFT
+python3 "$ROOT/scripts/add-type-marks.py" "$TMP/drafts/Recorder+FrameProcessing.swift" "$TMP/drafts/Settings.swift" > "$TMP/drafts.out"
+grep -Fq '// MARK: - Frame Processing' "$TMP/drafts/Recorder+FrameProcessing.swift" || { cat "$TMP/drafts.out" >&2; echo "Expected feature MARK draft" >&2; exit 1; }
+grep -Fq '// MARK: - Public Properties' "$TMP/drafts/Settings.swift" || { cat "$TMP/drafts.out" >&2; echo "Expected category MARK draft" >&2; exit 1; }
+swiftlint lint --strict --no-cache --config "$ROOT/.swiftlint.yml" "$TMP/drafts" > "$TMP/output" 2>&1 || {
+  cat "$TMP/output" >&2
+  echo "Drafted MARKs still fail lint" >&2
+  exit 1
+}
+
 echo 'OK: required type MARK lint fixtures'

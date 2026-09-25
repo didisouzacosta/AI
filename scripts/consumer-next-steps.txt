@@ -1,0 +1,18 @@
+Registre no Git:
+  git add .gitmodules .ai/shared .ai .codex .agents .swiftlint.yml .swiftformat \
+    scripts/lint-swift.sh scripts/fix-swift-spacing.pl scripts/install-swift-tools.sh \
+    scripts/add-type-marks.py \
+    .github/workflows/swift-lint.yml .claude/skills CLAUDE.md AGENTS.md  # e AGENTS_backup.md, se criado
+
+Adoção do padrão Swift (SWIFT_REFERENCE.md, "Organização e estilo"):
+  1. ferramentas: brew install swiftlint swiftformat, ou scripts/install-swift-tools.sh (versões fixas)
+  2. formate e corrija o espaçamento: scripts/lint-swift.sh --fix
+  3. rascunhe os MARKs ausentes e revise os nomes: scripts/lint-swift.sh --add-marks
+  4. verifique com scripts/lint-swift.sh e depois rode build e testes; testes que leem o
+     código-fonte como texto podem precisar de ajuste ao novo layout
+  5. CI: .github/workflows/swift-lint.yml já roda o gate; no Xcode Cloud, chame
+     scripts/install-swift-tools.sh e scripts/lint-swift.sh em ci_scripts/ci_post_clone.sh
+  6. fase de build opcional, em target com ENABLE_USER_SCRIPT_SANDBOXING = NO:
+     scripts/lint-swift.sh --format-only
+  7. revise e remova os arquivos *.local-backup criados por --adopt-lint-config
+  Mantenha commits separados: configuração, formatação mecânica e MARKs.

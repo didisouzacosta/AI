@@ -406,20 +406,27 @@ formatador só altera layout e grafia puramente sintática.
 
 `ai-bootstrap` instala e `ai-update` sincroniza, com manifesto, proteção de
 conflito e rollback: `.swiftformat`, `.swiftlint.yml`, `scripts/lint-swift.sh`,
-`scripts/fix-swift-spacing.pl`, os testes de fixtures e o workflow
-`.github/workflows/swift-lint.yml`. Um consumidor que já tinha configurações de
-lint próprias, fora do manifesto, usa uma vez `ai-update --adopt-lint-config`:
-os arquivos locais são preservados como `<arquivo>.local-backup` e substituídos
-pelos compartilhados. Remova o `.swift-format` legado quando ele não for mais
-usado.
+`scripts/fix-swift-spacing.pl`, `scripts/add-type-marks.py`,
+`scripts/install-swift-tools.sh` e o workflow `.github/workflows/swift-lint.yml`. Um consumidor que já tinha configurações de
+lint próprias, fora do manifesto, usa uma vez `ai-update --adopt-lint-config`
+(ou `ai-bootstrap --adopt-lint-config`): os arquivos locais são preservados
+como `<arquivo>.local-backup` e substituídos pelos compartilhados, e um
+`.swift-format` legado é movido para `.swift-format.local-backup`. Revise e
+remova os backups depois. Ao final, os dois comandos imprimem os próximos
+passos de adoção (`scripts/consumer-next-steps.txt`).
 
-A baseline é SwiftLint 0.63.2 e SwiftFormat 0.63.0, instalados com Homebrew:
+A baseline é SwiftLint 0.63.2 e SwiftFormat 0.63.0. As versões ficam fixadas
+somente em `scripts/lint-swift.sh`. Instale com Homebrew ou baixe exatamente
+essas versões para `.build/quality-tools/bin` (usado em CI e no Xcode Cloud):
 
 ```sh
 brew install swiftlint swiftformat
-swiftlint version
-swiftformat --version
+scripts/install-swift-tools.sh
 ```
+
+O gate procura as ferramentas em `.build/quality-tools/bin`,
+`/opt/homebrew/bin` e `/usr/local/bin` antes do `PATH`, porque fases de build
+do Xcode e o Xcode Cloud não herdam o `PATH` do terminal.
 
 O gate distribuído é `scripts/lint-swift.sh`. Ele coleta as raízes `Sources/`
 e `Tests/` do projeto e dos apps, os diretórios `Sources/` e `Tests/` de cada
@@ -432,9 +439,24 @@ espaçamento, `swiftlint --fix` e uma passada final de SwiftFormat antes de
 verificar:
 
 ```sh
-scripts/lint-swift.sh --fix
-scripts/lint-swift.sh
+scripts/lint-swift.sh --fix          # formata e insere as linhas em branco
+scripts/lint-swift.sh --add-marks    # rascunha os MARKs ausentes para revisão
+scripts/lint-swift.sh                # verifica sem escrever
+scripts/lint-swift.sh --format-only  # só o layout, para fases de build do Xcode
 ```
+
+`--add-marks` usa `scripts/add-type-marks.py`: extensions de conformidade
+recebem o nome dos protocolos, extensions `Tipo+Responsabilidade.swift`
+recebem a responsabilidade e os demais tipos recebem a categoria do primeiro
+membro (`Cases`, `Public Properties`, `Initializer`, `Body`, `Tests`...).
+Os nomes são rascunhos; revise-os antes do commit.
+
+Integração com Xcode: rode `--format-only` numa fase de build de um target
+com `ENABLE_USER_SCRIPT_SANDBOXING = NO` (o sandbox bloqueia a leitura das
+pastas) e mantenha o SwiftLint como build tool plugin. No Xcode Cloud, chame
+`scripts/install-swift-tools.sh` e `scripts/lint-swift.sh` em
+`ci_scripts/ci_post_clone.sh`. Testes que leem o código-fonte como texto podem
+precisar de ajuste ao layout canônico.
 
 Revise o diff produzido antes de registrá-lo e mantenha a formatação em massa
 em um commit separado de mudanças de comportamento.
@@ -442,8 +464,9 @@ em um commit separado de mudanças de comportamento.
 As regras custom do SwiftLint usam regex, não um parser de Swift. Elas cobrem
 o formato produzido pelo formatter (atributos e modificadores antes da
 declaração, `{` na mesma linha) e não cobrem sintaxe atípica. Revise também
-manualmente os `MARK:` e o espaçamento no diff. Os fixtures ficam em
-`scripts/test-required-type-marks.sh` e `scripts/test-swift-spacing.sh`.
+manualmente os `MARK:` e o espaçamento no diff. Os fixtures das regras ficam
+somente na base AI (`scripts/test-required-type-marks.sh` e
+`scripts/test-swift-spacing.sh`) e rodam no CI dela.
 
 Distribua as responsabilidades para evitar diagnósticos duplicados:
 

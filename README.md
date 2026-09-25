@@ -14,6 +14,9 @@ AI/
 ├── .swiftformat                 # SwiftFormat: formatador único
 ├── scripts/lint-swift.sh        # gate estrito local/CI (--fix formata)
 ├── scripts/fix-swift-spacing.pl # corrige o espaçamento entre blocos
+├── scripts/add-type-marks.py    # rascunha os MARKs obrigatórios
+├── scripts/install-swift-tools.sh # baixa SwiftLint/SwiftFormat nas versões fixas
+├── scripts/consumer-next-steps.txt # passos impressos por bootstrap/update
 ├── templates/swift-lint.yml     # workflow instalado nos consumidores
 └── .github/workflows/ai-base-checks.yml
 ```
@@ -46,12 +49,14 @@ MeuProjeto/
 │   └── managed-files.sha256
 ├── .codex/agents/               # cópias locais de sol.toml e luna.toml
 ├── .agents/skills/              # cópias locais das skills compartilhadas
+├── .claude/skills/<skill> -> ../../.agents/skills/<skill>  # mesmas skills no Claude Code
+├── CLAUDE.md                    # criado só se ausente: importa @AGENTS.md
 ├── .swiftlint.yml
 ├── .swiftformat
 ├── scripts/lint-swift.sh
 ├── scripts/fix-swift-spacing.pl
-├── scripts/test-required-type-marks.sh
-├── scripts/test-swift-spacing.sh
+├── scripts/add-type-marks.py
+├── scripts/install-swift-tools.sh
 └── .github/workflows/swift-lint.yml
 ```
 
@@ -84,12 +89,25 @@ configuração compartilhada uma única vez, com backup `<arquivo>.local-backup`
 ai-update --adopt-lint-config
 ```
 
-Depois do update, formate e verifique o código do consumidor:
+`ai-bootstrap` aceita a mesma flag. Um `.swift-format` legado é movido para
+`.swift-format.local-backup`. Ao final, os dois comandos imprimem os passos de
+adoção: instalar as ferramentas, `scripts/lint-swift.sh --fix`,
+`scripts/lint-swift.sh --add-marks`, verificar e integrar ao CI/Xcode.
 
-```bash
-scripts/lint-swift.sh --fix
-scripts/lint-swift.sh
-``` Nenhum comando escreve em
+Os comandos `ai-bootstrap` e `ai-update` executam os scripts desta pasta
+local, mas o conteúdo vem de `main`. Antes de rodar, eles fazem `git pull
+--ff-only` nesta base e, se ela mudou, reexecutam com os scripts novos. O pull
+é ignorado, com aviso, quando a base tem alterações locais, está fora de
+`main` ou a rede falha; defina `AI_SKIP_SELF_UPDATE=1` para desativá-lo. Mesmo
+sem o pull, um `setup-consumer.sh` desatualizado é substituído pelo de `main`
+antes de qualquer alteração no consumidor.
+
+As skills de `.agents/skills/` seguem o padrão aberto Agent Skills e são
+lidas também pelo Claude Code: o setup cria `.claude/skills/<skill>` como
+symlink para a mesma pasta, sem duplicar arquivos, e remove links de skills
+que deixaram de existir. Entradas locais com o mesmo nome e um `CLAUDE.md`
+existente são preservados; para usar as regras no Claude Code, o `CLAUDE.md`
+deve importar `@AGENTS.md`. Nenhum comando escreve em
 `~/.codex/agents` ou respeita `CODEX_CONFIG_DIR` para instalar agentes globais.
 
 Os nomes de despacho são `sol` (Manager, `gpt-6-sol` com esforço `high`) e
