@@ -425,9 +425,11 @@ brew install swiftlint swiftformat
 scripts/install-swift-tools.sh
 ```
 
-O gate procura as ferramentas em `.build/quality-tools/bin`,
-`/opt/homebrew/bin` e `/usr/local/bin` antes do `PATH`, porque fases de build
-do Xcode e o Xcode Cloud não herdam o `PATH` do terminal.
+O gate procura as ferramentas primeiro em `.build/quality-tools/bin`, depois no
+`PATH` de quem o chama e, por último, em `/opt/homebrew/bin` e
+`/usr/local/bin`, porque fases de build do Xcode e o Xcode Cloud não herdam o
+`PATH` do terminal. Assim, binários fixados que o CI coloca no `PATH` têm
+prioridade sobre o Homebrew do runner.
 
 O gate distribuído é `scripts/lint-swift.sh`. Ele coleta as raízes `Sources/`
 e `Tests/` do projeto e dos apps, os diretórios `Sources/` e `Tests/` de cada

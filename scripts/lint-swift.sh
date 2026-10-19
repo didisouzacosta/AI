@@ -6,9 +6,9 @@ readonly SWIFTFORMAT_VERSION="0.63.0"
 readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# Xcode build phases and CI do not inherit the interactive PATH: search the pinned
-# download (scripts/install-swift-tools.sh) and Homebrew explicitly.
-export PATH="$ROOT/.build/quality-tools/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+# Xcode build phases and CI do not inherit the interactive PATH: prefer the pinned
+# download (scripts/install-swift-tools.sh), then the caller's PATH, and fall back to Homebrew.
+export PATH="$ROOT/.build/quality-tools/bin:$PATH:/opt/homebrew/bin:/usr/local/bin"
 
 mode=lint
 case "${1:-}" in

@@ -136,6 +136,20 @@ test_lint_tooling_distribution() {
 
   run_bootstrap "$p" || { cat "$TMP/out"; fail lint-tooling-idempotence; }
 }
+# CI puts the pinned tools on PATH; a newer Homebrew SwiftFormat on the runner must not win.
+test_lint_gate_prefers_caller_path() {
+  local p="$TMP/caller-path consumer" stub="$TMP/caller-path-bin" marker="$TMP/caller-path-used" version
+  version="$(sed -n 's/^readonly SWIFTFORMAT_VERSION="\(.*\)"$/\1/p' "$ROOT/scripts/lint-swift.sh")"
+  consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail caller-path-bootstrap; }
+  mkdir -p "$p/Sources/Core" "$stub"; printf 'struct Probe {}\n' > "$p/Sources/Core/Core.swift"
+  printf '#!/usr/bin/env bash\ntouch %q\n[[ "${1:-}" == --version ]] && echo %q\nexit 0\n' "$marker" "$version" > "$stub/swiftformat"
+  chmod +x "$stub/swiftformat"
+  (cd "$p" && PATH="$stub:$PATH" bash scripts/lint-swift.sh --format-only) > "$TMP/caller-path.out" 2>&1 || {
+    cat "$TMP/caller-path.out" >&2
+    fail lint-gate-caller-path-run
+  }
+  [[ -e "$marker" ]] || fail lint-gate-prefers-caller-path
+}
 # Simulates a consumer set up by a base that still distributed .github/workflows/swift-lint.yml.
 install_legacy_workflow() {
   local p="$1" manifest="$1/.ai/managed-files.sha256" hash
@@ -369,5 +383,5 @@ test_modified_assets_and_special_destinations() {
   consumer "$r"; mkdir -p "$r/.codex/agents"; mkfifo "$r/.codex/agents/luna.toml"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
 }
 test_update_rollback() { local p="$TMP/update-rollback" before="$TMP/update-rollback-before"; consumer "$p"; run_bootstrap "$p" || fail update-rollback-bootstrap; printf remote-change > "$SEED/.agents/skills/example/update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m update-rollback >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; if run_update_fail "$p" after-submodule; then fail update-rollback; fi; snapshot "$p" "$TMP/update-rollback-after"; if ! cmp -s "$before" "$TMP/update-rollback-after"; then diff -u "$before" "$TMP/update-rollback-after" >&2 || true; fail update-rollback-state; fi; }
-seed; test_lint_tooling_distribution; test_retired_workflow; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
+seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_retired_workflow; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
 echo 'OK: consumer setup tests'
