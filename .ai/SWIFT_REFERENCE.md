@@ -407,7 +407,9 @@ formatador só altera layout e grafia puramente sintática.
 `ai-bootstrap` instala e `ai-update` sincroniza, com manifesto, proteção de
 conflito e rollback: `.swiftformat`, `.swiftlint.yml`, `scripts/lint-swift.sh`,
 `scripts/fix-swift-spacing.pl`, `scripts/add-type-marks.py`,
-`scripts/install-swift-tools.sh` e o workflow `.github/workflows/swift-lint.yml`. Um consumidor que já tinha configurações de
+`scripts/install-swift-tools.sh`. O workflow `.github/workflows/swift-lint.yml`, distribuído
+antes, não é mais instalado: o gate roda nas fases de build e no CI do consumidor
+(por exemplo, `ci_scripts/ci_post_clone.sh` no Xcode Cloud). Um consumidor que já tinha configurações de
 lint próprias, fora do manifesto, usa uma vez `ai-update --adopt-lint-config`
 (ou `ai-bootstrap --adopt-lint-config`): os arquivos locais são preservados
 como `<arquivo>.local-backup` e substituídos pelos compartilhados. Revise e
