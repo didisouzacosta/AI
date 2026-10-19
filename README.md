@@ -17,7 +17,6 @@ AI/
 ├── scripts/add-type-marks.py    # rascunha os MARKs obrigatórios
 ├── scripts/install-swift-tools.sh # baixa SwiftLint/SwiftFormat nas versões fixas
 ├── scripts/consumer-next-steps.txt # passos impressos por bootstrap/update
-├── templates/swift-lint.yml     # workflow instalado nos consumidores
 └── .github/workflows/ai-base-checks.yml
 ```
 
@@ -56,12 +55,12 @@ MeuProjeto/
 ├── scripts/lint-swift.sh
 ├── scripts/fix-swift-spacing.pl
 ├── scripts/add-type-marks.py
-├── scripts/install-swift-tools.sh
-└── .github/workflows/swift-lint.yml
+└── scripts/install-swift-tools.sh
 ```
 
 Preencha somente `.ai/PROJECT_BRIEF.md` e `.ai/PROJECT_GUIDE.md`, execute
-`scripts/lint-swift.sh` localmente e conecte-o como gate obrigatório do CI.
+`scripts/lint-swift.sh` localmente e conecte-o como gate obrigatório do CI
+(por exemplo, no `ci_scripts/ci_post_clone.sh` do Xcode Cloud).
 Depois registre o submodule, os links e as cópias locais no Git. O bootstrap preserva o README
 do consumidor e cria os dois documentos apenas quando estiverem ausentes.
 
@@ -77,9 +76,12 @@ ai-update
 
 O update avança `.ai/shared` para `main`, verifica o manifesto
 `.ai/managed-files.sha256` e sincroniza agentes, skills, configurações de lint
-e formatter, scripts do gate e o workflow Swift. O gate cobre fontes, testes e
+e formatter e scripts do gate. O gate cobre fontes, testes e
 `Package.swift` dos caminhos do consumidor sem percorrer caches ou submodules.
 Uma edição local de arquivo gerenciado interrompe a atualização; arquivos extras permanecem intactos.
+A base não distribui mais `.github/workflows/swift-lint.yml`: o update remove a
+cópia intacta, retira do manifesto a que o consumidor já apagou e preserva, com
+aviso, a que tiver edições locais.
 
 Se o consumidor já tinha `.swiftlint.yml`, `.swiftformat` ou scripts de lint
 próprios fora do manifesto, o update para com conflito. Para adotar a

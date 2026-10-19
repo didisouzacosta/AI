@@ -21,7 +21,7 @@ snapshot() { (cd "$1" && { find . -path './.git' -prune -o -type f -print | LC_A
 seed() {
   git init --bare "$REMOTE" >/dev/null
   mkdir -p "$SEED/.ai" "$SEED/.codex/agents" "$SEED/.agents/skills/example/assets" \
-    "$SEED/scripts" "$SEED/templates" "$SEED/.github/workflows"
+    "$SEED/scripts"
   printf '# agents\n' > "$SEED/AGENTS.md"; printf '# orchestrator\n' > "$SEED/.ai/CODEX_ORCHESTRATOR.md"; printf '# swift\n' > "$SEED/.ai/SWIFT_REFERENCE.md"
   printf 'brief v1\n' > "$SEED/.ai/PROJECT_BRIEF.template.md"; printf 'guide v1\n' > "$SEED/.ai/PROJECT_GUIDE.template.md"
   printf 'luna v1\n' > "$SEED/.codex/agents/luna.toml"; printf 'sol v1\n' > "$SEED/.codex/agents/sol.toml"; printf 'skill v1\n' > "$SEED/.agents/skills/example/SKILL.md"; printf old > "$SEED/.agents/skills/example/a"; printf '\001\002\377' > "$SEED/.agents/skills/example/assets/logo.bin"
@@ -30,24 +30,22 @@ seed() {
   for script in lint-swift.sh fix-swift-spacing.pl install-swift-tools.sh add-type-marks.py test-required-type-marks.sh test-swift-spacing.sh; do
     cp "$ROOT/scripts/$script" "$SEED/scripts/$script"; chmod +x "$SEED/scripts/$script"
   done
-  cp "$ROOT/templates/swift-lint.yml" "$SEED/templates/swift-lint.yml"
   git -C "$SEED" init >/dev/null; git -C "$SEED" config user.email test@example.com; git -C "$SEED" config user.name Tests
   git -C "$SEED" add .; git -C "$SEED" commit -m v1 >/dev/null; git -C "$SEED" branch -M main; git -C "$SEED" remote add origin "$REMOTE"; git -C "$SEED" push -u origin main >/dev/null
 }
 test_lint_tooling_distribution() {
-  local p="$TMP/lint-tooling consumer" source_rel
+  local p="$TMP/lint-tooling consumer"
   consumer "$p"
   mkdir -p "$p/.github/workflows"
-  cp "$ROOT/templates/swift-lint.yml" "$p/.github/workflows/swift-lint.yml"
   printf 'consumer build workflow\n' > "$p/.github/workflows/build.yml"
   run_bootstrap "$p" || { cat "$TMP/out"; fail lint-tooling-bootstrap; }
   for rel in .swiftlint.yml .swiftformat scripts/lint-swift.sh scripts/fix-swift-spacing.pl \
-    scripts/install-swift-tools.sh scripts/add-type-marks.py .github/workflows/swift-lint.yml; do
-    source_rel="$rel"
-    [[ "$rel" != .github/workflows/swift-lint.yml ]] || source_rel=templates/swift-lint.yml
-    copy "$p/$rel" "$SEED/$source_rel"
+    scripts/install-swift-tools.sh scripts/add-type-marks.py; do
+    copy "$p/$rel" "$SEED/$rel"
     grep -Fq "  $rel" "$p/.ai/managed-files.sha256" || fail "manifest-$rel"
   done
+  [[ ! -e "$p/.github/workflows/swift-lint.yml" ]] || fail workflow-not-distributed
+  if grep -Fq '.github/' "$p/.ai/managed-files.sha256"; then fail workflow-not-in-manifest; fi
   for rel in test-required-type-marks.sh test-swift-spacing.sh; do [[ ! -e "$p/scripts/$rel" ]] || fail "base-only-test-installed-$rel"; done
   for rel in lint-swift.sh fix-swift-spacing.pl install-swift-tools.sh add-type-marks.py; do
     [[ -x "$p/scripts/$rel" ]] || fail "lint-scripts-executable-$rel"
@@ -128,14 +126,46 @@ test_lint_tooling_distribution() {
   local workflow_conflict="$TMP/workflow-conflict" config_link="$TMP/config-link" outside="$TMP/config-outside"
   consumer "$workflow_conflict"; mkdir -p "$workflow_conflict/.github/workflows"
   printf 'consumer workflow\n' > "$workflow_conflict/.github/workflows/swift-lint.yml"
-  if run_bootstrap "$workflow_conflict"; then fail workflow-conflict; fi
-  [[ "$(<"$workflow_conflict/.github/workflows/swift-lint.yml")" == 'consumer workflow' && ! -e "$workflow_conflict/.ai/shared" ]] || fail workflow-conflict-preflight
+  run_bootstrap "$workflow_conflict" || { cat "$TMP/out"; fail consumer-workflow-bootstrap; }
+  [[ "$(<"$workflow_conflict/.github/workflows/swift-lint.yml")" == 'consumer workflow' ]] || fail consumer-workflow-preserved
+  if grep -Fq '.github/' "$workflow_conflict/.ai/managed-files.sha256"; then fail consumer-workflow-unmanaged; fi
   consumer "$config_link"; mkdir "$outside"; printf outside-config > "$outside/formatter"
   ln -s "$outside/formatter" "$config_link/.swiftformat"
   if run_bootstrap "$config_link"; then fail formatter-symlink-conflict; fi
   [[ -L "$config_link/.swiftformat" && "$(<"$outside/formatter")" == outside-config && ! -e "$config_link/.ai/shared" ]] || fail formatter-symlink-preserved
 
   run_bootstrap "$p" || { cat "$TMP/out"; fail lint-tooling-idempotence; }
+}
+# Simulates a consumer set up by a base that still distributed .github/workflows/swift-lint.yml.
+install_legacy_workflow() {
+  local p="$1" manifest="$1/.ai/managed-files.sha256" hash
+  mkdir -p "$p/.github/workflows"; printf 'name: Swift lint\n' > "$p/.github/workflows/swift-lint.yml"
+  hash="$(shasum -a 256 "$p/.github/workflows/swift-lint.yml" | awk '{print $1}')"
+  { cat "$manifest"; printf '%s  %s\n' "$hash" .github/workflows/swift-lint.yml; } | LC_ALL=C sort -b -k2 > "$TMP/legacy-manifest"
+  cp "$TMP/legacy-manifest" "$manifest"
+}
+test_retired_workflow() {
+  local intact="$TMP/retired intact" deleted="$TMP/retired deleted" edited="$TMP/retired edited" rollback="$TMP/retired rollback" before="$TMP/retired-rollback-before" p
+  for p in "$intact" "$deleted" "$edited" "$rollback"; do
+    consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail retired-bootstrap; }
+    install_legacy_workflow "$p"
+  done
+  run_update "$intact" || { cat "$TMP/out"; fail retired-intact-update; }
+  [[ ! -e "$intact/.github" ]] || fail retired-intact-removed
+  if grep -Fq '.github/' "$intact/.ai/managed-files.sha256"; then fail retired-intact-manifest; fi
+  rm "$deleted/.github/workflows/swift-lint.yml"
+  run_update "$deleted" || { cat "$TMP/out"; fail retired-deleted-update; }
+  if grep -Fq '.github/' "$deleted/.ai/managed-files.sha256"; then fail retired-deleted-manifest; fi
+  run_update "$deleted" || { cat "$TMP/out"; fail retired-deleted-idempotent; }
+  printf 'consumer tweak\n' >> "$edited/.github/workflows/swift-lint.yml"
+  run_update "$edited" || { cat "$TMP/out"; fail retired-edited-update; }
+  grep -Fq 'consumer tweak' "$edited/.github/workflows/swift-lint.yml" || fail retired-edited-preserved
+  grep -Fq '.github/workflows/swift-lint.yml' "$TMP/out" || { cat "$TMP/out"; fail retired-edited-warning; }
+  if grep -Fq '.github/' "$edited/.ai/managed-files.sha256"; then fail retired-edited-manifest; fi
+  snapshot "$rollback" "$before"
+  if run_update_fail "$rollback" after-claude-skills; then fail retired-rollback; fi
+  snapshot "$rollback" "$TMP/retired-rollback-after"
+  cmp -s "$before" "$TMP/retired-rollback-after" || { diff -u "$before" "$TMP/retired-rollback-after" >&2 || true; fail retired-rollback-state; }
 }
 test_lint_config_adoption() {
   local p="$TMP/adopt consumer" manifest
@@ -339,5 +369,5 @@ test_modified_assets_and_special_destinations() {
   consumer "$r"; mkdir -p "$r/.codex/agents"; mkfifo "$r/.codex/agents/luna.toml"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
 }
 test_update_rollback() { local p="$TMP/update-rollback" before="$TMP/update-rollback-before"; consumer "$p"; run_bootstrap "$p" || fail update-rollback-bootstrap; printf remote-change > "$SEED/.agents/skills/example/update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m update-rollback >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; if run_update_fail "$p" after-submodule; then fail update-rollback; fi; snapshot "$p" "$TMP/update-rollback-after"; if ! cmp -s "$before" "$TMP/update-rollback-after"; then diff -u "$before" "$TMP/update-rollback-after" >&2 || true; fail update-rollback-state; fi; }
-seed; test_lint_tooling_distribution; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
+seed; test_lint_tooling_distribution; test_retired_workflow; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
 echo 'OK: consumer setup tests'
