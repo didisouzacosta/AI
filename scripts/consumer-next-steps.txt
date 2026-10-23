@@ -1,7 +1,9 @@
 Registre no Git:
-  git add .gitmodules .ai/shared .ai .codex .agents .swiftlint.yml .swiftformat \
+  git add .gitmodules .ai/shared .ai .agents .swiftlint.yml .swiftformat \
     scripts/lint-swift.sh scripts/fix-swift-spacing.pl scripts/install-swift-tools.sh \
     scripts/add-type-marks.py .claude/skills CLAUDE.md AGENTS.md  # e AGENTS_backup.md, se criado
+  e cada remoção indicada por "Arquivo removido", por exemplo os agentes fixos que a
+  base não distribui mais: git add -A .codex
 
 Adoção do padrão Swift (SWIFT_REFERENCE.md, "Organização e estilo"):
   1. ferramentas: brew install swiftlint swiftformat, ou scripts/install-swift-tools.sh (versões fixas)

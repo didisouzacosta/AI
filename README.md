@@ -1,14 +1,14 @@
 # AI — base compartilhada para projetos Apple
 
-Esta base fornece regras de engenharia, agentes e skills para projetos Swift.
+Esta base fornece regras de engenharia, o ciclo de subagentes Manager →
+Developer → Manager e skills para projetos Swift.
 
 ## Estrutura
 
 ```text
 AI/
 ├── AGENTS.md
-├── .ai/                         # referências e templates compartilhados
-├── .codex/agents/               # sol.toml e luna.toml
+├── .ai/                         # orquestrador, referências e templates compartilhados
 ├── .agents/skills/              # sete skills completas
 ├── .swiftlint.yml               # baseline SwiftLint
 ├── .swiftformat                 # SwiftFormat: formatador único
@@ -46,7 +46,6 @@ MeuProjeto/
 │   ├── CODEX_ORCHESTRATOR.md -> shared/.ai/CODEX_ORCHESTRATOR.md
 │   ├── SWIFT_REFERENCE.md -> shared/.ai/SWIFT_REFERENCE.md
 │   └── managed-files.sha256
-├── .codex/agents/               # cópias locais de sol.toml e luna.toml
 ├── .agents/skills/              # cópias locais das skills compartilhadas
 ├── .claude/skills/<skill> -> ../../.agents/skills/<skill>  # mesmas skills no Claude Code
 ├── CLAUDE.md                    # criado só se ausente: importa @AGENTS.md
@@ -75,13 +74,17 @@ ai-update
 ```
 
 O update avança `.ai/shared` para `main`, verifica o manifesto
-`.ai/managed-files.sha256` e sincroniza agentes, skills, configurações de lint
+`.ai/managed-files.sha256` e sincroniza skills, configurações de lint
 e formatter e scripts do gate. O gate cobre fontes, testes e
 `Package.swift` dos caminhos do consumidor sem percorrer caches ou submodules.
 Uma edição local de arquivo gerenciado interrompe a atualização; arquivos extras permanecem intactos.
-A base não distribui mais `.github/workflows/swift-lint.yml`: o update remove a
+A base não distribui mais `.github/workflows/swift-lint.yml` nem os agentes
+fixos `.codex/agents/sol.toml` e `.codex/agents/luna.toml`: o update remove a
 cópia intacta, retira do manifesto a que o consumidor já apagou e preserva, com
-aviso, a que tiver edições locais.
+aviso, a que tiver edições locais. Registre as remoções no Git do consumidor.
+Como `.ai/PROJECT_GUIDE.md` e `.ai/PROJECT_BRIEF.md` nunca são reescritos, o
+update apenas avisa, com as linhas, quando eles ainda citam `sol`, `luna` ou os
+TOML; `AGENTS.md` declara essas referências obsoletas.
 
 Se o consumidor já tinha `.swiftlint.yml`, `.swiftformat` ou scripts de lint
 próprios fora do manifesto, o update para com conflito. Para adotar a
@@ -108,13 +111,20 @@ lidas também pelo Claude Code: o setup cria `.claude/skills/<skill>` como
 symlink para a mesma pasta, sem duplicar arquivos, e remove links de skills
 que deixaram de existir. Entradas locais com o mesmo nome e um `CLAUDE.md`
 existente são preservados; para usar as regras no Claude Code, o `CLAUDE.md`
-deve importar `@AGENTS.md`. Nenhum comando escreve em
-`~/.codex/agents` ou respeita `CODEX_CONFIG_DIR` para instalar agentes globais.
+deve importar `@AGENTS.md`. Nenhum comando instala agentes, locais ou globais
+(`~/.codex/agents`, `CODEX_CONFIG_DIR`).
 
-Os nomes de despacho são `sol` (Manager, `gpt-6-sol` com esforço `high`) e
-`luna` (Developer, `gpt-6-luna` com esforço `high`). Reinicie a sessão Codex
-após adicionar ou atualizar as definições do projeto para verificar a descoberta.
+## Subagentes
 
-Referências: [agentes personalizados](https://learn.chatgpt.com/docs/agent-configuration/subagents),
+Toda alteração de comportamento segue o ciclo obrigatório de
+`.ai/CODEX_ORCHESTRATOR.md`: um subagente no papel Manager planeja em modo
+somente leitura, um subagente no papel Developer implementa e valida, e o
+Manager revisa ao final até `APPROVED`. A base não fixa agentes, nomes nem
+modelos: o agente principal cria os subagentes com o mecanismo nativo da
+ferramenta (Codex, Claude Code ou outra), escolhe tipo, modelo e esforço
+conforme a tarefa e pode criar subagentes auxiliares quando precisar. As
+instruções de cada papel ficam no próprio orquestrador.
+
+Referências: [subagentes do Codex](https://learn.chatgpt.com/docs/agent-configuration/subagents),
 [skills](https://learn.chatgpt.com/docs/build-skills) e
 [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md).

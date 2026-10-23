@@ -19,12 +19,13 @@ GIT_DIR="$(git rev-parse --absolute-git-dir)"
 cd "$ROOT"
 # Lint/format files distributed to consumers.
 LINT_FILES=(.swiftlint.yml .swiftformat scripts/lint-swift.sh scripts/fix-swift-spacing.pl scripts/install-swift-tools.sh scripts/add-type-marks.py)
-# Files earlier versions distributed. They are still accepted in an existing manifest; on update an
-# intact copy is removed, a missing one is dropped from the manifest and an edited one is kept.
-RETIRED_FILES=(.github/workflows/swift-lint.yml)
+# Files earlier versions distributed, including the fixed sol/luna Codex agents. They are still accepted
+# in an existing manifest; on update an intact copy is removed, a missing one is dropped from the
+# manifest and an edited one is kept.
+RETIRED_FILES=(.github/workflows/swift-lint.yml .codex/agents/luna.toml .codex/agents/sol.toml)
 is_lint_file() { local file; for file in "${LINT_FILES[@]}"; do [ "$file" = "$1" ] && return 0; done; return 1; }
 is_retired_file() { local file; for file in "${RETIRED_FILES[@]}"; do [ "$file" = "$1" ] && return 0; done; return 1; }
-safe_rel() { case "$1" in .codex/agents/*|.agents/skills/*) ;; *) is_lint_file "$1" || is_retired_file "$1" || return 1;; esac; [[ "$1" != */ && "$1" != *//* && "$1" != */./* && "$1" != */../* && "$1" != *$'\n'* && "$1" != *$'\r'* ]]; }
+safe_rel() { case "$1" in .agents/skills/*) ;; *) is_lint_file "$1" || is_retired_file "$1" || return 1;; esac; [[ "$1" != */ && "$1" != *//* && "$1" != */./* && "$1" != */../* && "$1" != *$'\n'* && "$1" != *$'\r'* ]]; }
 managed_before() { local wanted="$1" hash path; [ -n "$OLD" ] || return 1; while IFS=$'\t' read -r hash path; do [ "$path" = "$wanted" ] && return 0; done < "$OLD"; return 1; }
 managed_hash() { local wanted="$1" hash path; [ -n "$OLD" ] || return 1; while IFS=$'\t' read -r hash path; do [ "$path" = "$wanted" ] && { printf '%s\n' "$hash"; return 0; }; done < "$OLD"; return 1; }
 verify_current_managed() { local wanted="$1" hash path; while IFS=$'\t' read -r hash path; do if [ "$path" = "$wanted" ]; then [ -f "$ROOT/$wanted" ] && [ ! -L "$ROOT/$wanted" ] || die "arquivo gerenciado mudou: $wanted"; [ "$(shasum -a 256 "$ROOT/$wanted" | awk '{print $1}')" = "$hash" ] || die "arquivo gerenciado mudou: $wanted"; return 0; fi; done < "$OLD"; return 1; }
@@ -96,10 +97,9 @@ if [ -n "${AI_TEST_PAUSE_AFTER_CANDIDATE:-}" ]; then
   while [ ! -f "${AI_TEST_PAUSE_AFTER_CANDIDATE}/continue" ]; do sleep 0.05; done
 fi
 for f in AGENTS.md .ai/CODEX_ORCHESTRATOR.md .ai/SWIFT_REFERENCE.md .ai/PROJECT_BRIEF.template.md .ai/PROJECT_GUIDE.template.md; do [ -f "$CANDIDATE/repo/$f" ] && [ ! -L "$CANDIDATE/repo/$f" ] || die "dependência sem $f"; done
-for f in .codex/agents/luna.toml .codex/agents/sol.toml; do [ -f "$CANDIDATE/repo/$f" ] && [ ! -L "$CANDIDATE/repo/$f" ] || die "dependência sem $f"; done
 for f in "${LINT_FILES[@]}"; do [ -f "$CANDIDATE/repo/$f" ] && [ ! -L "$CANDIDATE/repo/$f" ] || die "dependência sem $f"; done
-while IFS= read -r p; do [ -d "$p" ] && [ ! -L "$p" ] && continue; [ -f "$p" ] && [ ! -L "$p" ] && continue; die "fonte gerenciada insegura."; done < <(find "$CANDIDATE/repo/.codex/agents" "$CANDIDATE/repo/.agents/skills" -print)
-STAGE="$(mktemp -d "${TMPDIR:-/tmp}/ai-stage.XXXXXX")"; (cd "$CANDIDATE/repo"; { LC_ALL=C find .codex/agents .agents/skills -type f -print; printf '%s\n' "${LINT_FILES[@]}"; } | LC_ALL=C sort) > "$STAGE/paths"
+while IFS= read -r p; do [ -d "$p" ] && [ ! -L "$p" ] && continue; [ -f "$p" ] && [ ! -L "$p" ] && continue; die "fonte gerenciada insegura."; done < <(find "$CANDIDATE/repo/.agents/skills" -print)
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/ai-stage.XXXXXX")"; (cd "$CANDIDATE/repo"; { LC_ALL=C find .agents/skills -type f -print; printf '%s\n' "${LINT_FILES[@]}"; } | LC_ALL=C sort) > "$STAGE/paths"
 while IFS= read -r rel; do safe_rel "$rel" || die "fonte insegura."; safe_destination_parents "$rel" || die "destino inseguro: $rel"; mkdir -p "$STAGE/files/$(dirname "$rel")"; cp -p "$CANDIDATE/repo/$rel" "$STAGE/files/$rel"; printf '%s  %s\n' "$(shasum -a 256 "$CANDIDATE/repo/$rel" | awk '{print $1}')" "$rel" >> "$STAGE/manifest"; if [ -e "$ROOT/$rel" ] || [ -L "$ROOT/$rel" ]; then [ -f "$ROOT/$rel" ] && [ ! -L "$ROOT/$rel" ] || die "destino inseguro."; managed_before "$rel" || cmp -s "$ROOT/$rel" "$STAGE/files/$rel" || adoptable "$rel" || die "conflito com arquivo local: $rel (use ai-update --adopt-lint-config para substituir configurações de lint locais com backup)"; fi; done < "$STAGE/paths"
 for f in PROJECT_BRIEF.md PROJECT_GUIDE.md; do [ ! -L "$ROOT/.ai/$f" ] || die "$f symlink inseguro."; [ ! -e "$ROOT/.ai/$f" ] || [ -f "$ROOT/.ai/$f" ] || die "$f especial."; done
 for f in CODEX_ORCHESTRATOR.md SWIFT_REFERENCE.md; do if [ -e "$ROOT/.ai/$f" ] || [ -L "$ROOT/.ai/$f" ]; then [ -L "$ROOT/.ai/$f" ] && [ "$(readlink "$ROOT/.ai/$f")" = "shared/.ai/$f" ] || die "$f conflita."; fi; done
@@ -127,4 +127,6 @@ if [ ! -e "$ROOT/CLAUDE.md" ] && [ ! -L "$ROOT/CLAUDE.md" ]; then printf '# CLAU
 while IFS= read -r skill; do name="$(basename "$skill")"; link="$ROOT/.claude/skills/$name"; target="../../.agents/skills/$name"; if [ -L "$link" ] && [ "$(readlink "$link")" = "$target" ]; then continue; fi; if [ -e "$link" ] || [ -L "$link" ]; then echo "Aviso: .claude/skills/$name já existe e foi preservado." >&2; continue; fi; for dir in .claude .claude/skills; do [ -d "$ROOT/$dir" ] || { mkdir "$ROOT/$dir"; CREATED_DIRS+=("$dir"); CREATED_DIR_COUNT=$((CREATED_DIR_COUNT + 1)); }; done; ln -s "$target" "$link"; record_project_link "$target" ".claude/skills/$name"; done < <(find "$ROOT/.agents/skills" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort)
 if [ -d "$ROOT/.claude/skills" ]; then for link in "$ROOT/.claude/skills"/*; do [ -L "$link" ] || continue; case "$(readlink "$link")" in ../../.agents/skills/*) [ -e "$link" ] || { rm -f "$link"; echo "Link de skill removido: .claude/skills/$(basename "$link")" >&2; };; esac; done; fi
 failpoint after-claude-skills
+# Project documents are never rewritten; point out wording copied from templates that named the fixed agents.
+for f in .ai/PROJECT_GUIDE.md .ai/PROJECT_BRIEF.md; do [ -f "$ROOT/$f" ] && [ ! -L "$ROOT/$f" ] || continue; stale="$(grep -nE '`(sol|luna)`|(sol|luna)\.toml|TOML compartilhados' "$ROOT/$f" | cut -d: -f1 | paste -sd, - || true)"; [ -z "$stale" ] || echo "Aviso: $f cita os agentes fixos sol/luna ou seus TOML (linhas $stale). Atualize o trecho: a base não fixa mais agentes e os papéis Manager e Developer seguem AGENTS.md." >&2; done
 echo "Projeto configurado: $ROOT"

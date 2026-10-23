@@ -19,15 +19,16 @@ projetos consumidores; a ausência deles neste repositório é intencional.
 
 ## Orquestração obrigatória de subagentes
 
-- [`.ai/CODEX_ORCHESTRATOR.md`](./.ai/CODEX_ORCHESTRATOR.md) é o contrato operacional compartilhado que governa a criação, a passagem de contexto, os estados, a revisão e os critérios de aprovação dos subagentes. Consulte-o antes de iniciar qualquer alteração de comportamento em um projeto consumidor e siga o ciclo Manager → Developer → Manager quando os agentes nativos estiverem disponíveis.
-- Subagentes são agentes nativos do Codex executados pelo agente principal para assumir um papel delimitado da tarefa. Eles não são apenas nomes alternativos para modelos: recebem escopo, entradas, critérios e permissões próprias, devolvem resultados ao agente principal e não iniciam outro workflow nem delegam recursivamente.
-- Para alterações de comportamento, o agente principal deve criar os agentes personalizados `sol` e `luna`, definidos pelas configurações compartilhadas em `.codex/agents/`. `Manager` e `Developer` são os papéis conceituais, não os identificadores de despacho. Antes da implementação, registre o estado inicial e entregue o pedido original a `sol` para planejamento; depois encaminhe o plano READY a `luna`. Cada agente deve receber escopo, entradas e critérios claros.
-- O agente `sol`, no papel conceitual Manager, exerce dois papéis somente leitura: prepara o plano e realiza a revisão final da implementação contra o pedido, o plano, os critérios de aceite e o diff.
-- O agente `luna`, no papel conceitual Developer, recebe o plano completo de `sol`, implementa, testa e corrige os apontamentos.
-- Antes de aceitar cada delegação, confira se o modelo e o esforço de raciocínio observáveis no runtime correspondem ao TOML selecionado. Se houver divergência observável, não aceite a etapa e informe o principal. Se a ferramenta não expuser esses valores, declare a limitação; não afirme que o TOML foi aplicado nem que a correspondência foi verificada.
+- [`.ai/CODEX_ORCHESTRATOR.md`](./.ai/CODEX_ORCHESTRATOR.md) é o contrato operacional compartilhado que governa os papéis, a passagem de contexto, os estados, a revisão e os critérios de aprovação dos subagentes. Consulte-o antes de iniciar qualquer alteração de comportamento em um projeto consumidor e siga o ciclo Manager → Developer → Manager.
+- Subagentes são agentes nativos da ferramenta em uso (por exemplo, Codex ou Claude Code) executados pelo agente principal para assumir um papel delimitado da tarefa. Eles recebem escopo, entradas, critérios e permissões próprias, devolvem resultados ao agente principal e não iniciam outro workflow nem delegam recursivamente.
+- A base não define agentes, nomes de despacho nem modelos fixos. O agente principal cria livremente os subagentes com o mecanismo nativo da ferramenta e escolhe o tipo de agente, o modelo e o esforço disponíveis conforme a tarefa. Ele também pode criar subagentes auxiliares, como os de pesquisa ou leitura em paralelo, quando a tarefa se beneficiar; eles não substituem os papéis obrigatórios.
+- Para alterações de comportamento, o ciclo exige um subagente no papel conceitual `Manager` e outro no papel conceitual `Developer`. Antes da implementação, registre o estado inicial e entregue o pedido original ao Manager para planejamento; depois encaminhe o plano READY ao Developer; ao final, o Manager revisa a implementação. Cada subagente recebe as instruções do seu papel, definidas no orquestrador, e escopo, entradas e critérios claros.
+- O Manager exerce dois papéis somente leitura: prepara o plano e realiza a revisão final da implementação contra o pedido, o plano, os critérios de aceite e o diff. Quando a ferramenta permitir, aplique essa restrição pelas permissões do subagente.
+- O Developer recebe o plano completo do Manager, implementa, testa e corrige os apontamentos.
 - O plano do Manager deve entregar ao Developer, de forma executável e sem lacunas conhecidas: requisitos funcionais e não funcionais, escopo e não escopo, arquivos e contratos afetados, abordagem e frameworks/APIs atuais compatíveis com o projeto, skills aplicáveis, riscos, estratégia TDD/validação e critérios objetivos de aceite. O Developer não deve reabrir decisões já resolvidas no plano sem registrar a razão.
 - O fluxo é obrigatório: Manager analisa → Developer implementa e valida → Manager revisa → Developer corrige, se necessário → Manager revisa novamente até `APPROVED` ou o limite definido pelo orquestrador. `CHANGES_REQUESTED`, validação obrigatória pendente, saída inválida ou mudança concorrente impede a conclusão.
-- O agente principal aguarda cada etapa, encaminha correções e solicita uma nova revisão do Manager, sem editar enquanto a revisão está em andamento. Se a ferramenta não disponibilizar os agentes nativos, informe a limitação; não simule sua criação por nomes em prompts. Não crie tarefas independentes na interface para substituir subagentes.
+- O agente principal aguarda cada etapa, encaminha correções e solicita uma nova revisão do Manager, sem editar enquanto a revisão está em andamento. Se a ferramenta não permitir criar subagentes, informe a limitação; não simule os papéis em um único agente nem afirme que o ciclo foi executado. Não crie tarefas independentes na interface para substituir subagentes.
+- Versões anteriores desta base fixavam os agentes `sol` e `luna` em `.codex/agents/*.toml` e exigiam conferir modelo e esforço contra esses TOML. Essas referências, se ainda existirem em documentos locais como `.ai/PROJECT_GUIDE.md`, estão obsoletas: leia-as como os papéis Manager e Developer descritos aqui.
 
 ## Skills obrigatórias
 
@@ -48,20 +49,21 @@ de `SWIFT_REFERENCE.md` prevalecem sobre a orientação genérica da skill.
 
 ## Papéis dos subagentes
 
-Os papéis abaixo são executados pelos subagentes nativos definidos nas
-configurações compartilhadas. O agente principal não deve tratar esta seção
-como um workflow alternativo: a coordenação operacional pertence ao
+Os papéis abaixo são executados pelos subagentes que o agente principal cria
+com a ferramenta em uso. O agente principal não deve tratar esta seção como um
+workflow alternativo: a coordenação operacional pertence ao
 [`CODEX_ORCHESTRATOR.md`](./.ai/CODEX_ORCHESTRATOR.md).
 
-- Planejamento: `sol` (papel conceitual Manager), somente leitura.
-- Implementação e correções: `luna` (papel conceitual Developer).
-- Revisões: `sol` (papel conceitual Manager), somente leitura.
+- Planejamento: subagente no papel Manager, somente leitura.
+- Implementação e correções: subagente no papel Developer.
+- Revisões: subagente no papel Manager, somente leitura.
 
 O ciclo obrigatório é definido e detalhado pelo orquestrador: Manager planeja →
 Developer implementa e valida → Manager revisa → Developer corrige, se
 necessário → Manager revisa novamente até resolver todos os apontamentos.
 
-Quando uma ferramenta restringir caracteres, diferencie o identificador técnico do nome de apresentação e preserve exatamente o nome definido acima.
+Identifique o papel (`Manager` ou `Developer`) no nome ou na descrição de cada
+delegação, para que o histórico mostre qual subagente executou cada etapa.
 
 ## Fluxo de trabalho
 

@@ -5,6 +5,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TEST_DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode 26.6.app/Contents/Developer}"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ai-base-tests.XXXXXX")"
 REMOTE="$TMP/remote.git"; SEED="$TMP/seed"; CONSUMER="$TMP/consumer with spaces"
+# A managed file copied after the example skill; the concurrency tests edit it mid-update.
+HELPER=".agents/skills/helper/SKILL.md"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 # Never pull the real AI checkout from the tests; test_self_update_base opts back in.
 export AI_SKIP_SELF_UPDATE=1
@@ -20,11 +22,11 @@ run_bootstrap_fail() { (cd "$1" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMO
 snapshot() { (cd "$1" && { find . -path './.git' -prune -o -type f -print | LC_ALL=C sort | while IFS= read -r f; do shasum -a 256 "$f"; done; find . -path './.git' -prune -o -type l -print | LC_ALL=C sort | while IFS= read -r f; do printf 'LINK %s %s\n' "$f" "$(readlink "$f")"; done; git status --porcelain=v1; git ls-files --stage; git config --local --list | LC_ALL=C sort; test -f .gitmodules && cat .gitmodules || true; test -d .ai/shared && git -C .ai/shared rev-parse HEAD && git -C .ai/shared branch --show-current || true; }) > "$2"; }
 seed() {
   git init --bare "$REMOTE" >/dev/null
-  mkdir -p "$SEED/.ai" "$SEED/.codex/agents" "$SEED/.agents/skills/example/assets" \
+  mkdir -p "$SEED/.ai" "$SEED/.agents/skills/example/assets" "$SEED/.agents/skills/helper" \
     "$SEED/scripts"
   printf '# agents\n' > "$SEED/AGENTS.md"; printf '# orchestrator\n' > "$SEED/.ai/CODEX_ORCHESTRATOR.md"; printf '# swift\n' > "$SEED/.ai/SWIFT_REFERENCE.md"
   printf 'brief v1\n' > "$SEED/.ai/PROJECT_BRIEF.template.md"; printf 'guide v1\n' > "$SEED/.ai/PROJECT_GUIDE.template.md"
-  printf 'luna v1\n' > "$SEED/.codex/agents/luna.toml"; printf 'sol v1\n' > "$SEED/.codex/agents/sol.toml"; printf 'skill v1\n' > "$SEED/.agents/skills/example/SKILL.md"; printf old > "$SEED/.agents/skills/example/a"; printf '\001\002\377' > "$SEED/.agents/skills/example/assets/logo.bin"
+  printf 'helper v1\n' > "$SEED/$HELPER"; printf 'skill v1\n' > "$SEED/.agents/skills/example/SKILL.md"; printf old > "$SEED/.agents/skills/example/a"; printf '\001\002\377' > "$SEED/.agents/skills/example/assets/logo.bin"
   cp "$ROOT/.swiftlint.yml" "$SEED/.swiftlint.yml"
   cp "$ROOT/.swiftformat" "$SEED/.swiftformat"
   for script in lint-swift.sh fix-swift-spacing.pl install-swift-tools.sh add-type-marks.py test-required-type-marks.sh test-swift-spacing.sh; do
@@ -150,14 +152,16 @@ test_lint_gate_prefers_caller_path() {
   }
   [[ -e "$marker" ]] || fail lint-gate-prefers-caller-path
 }
-# Simulates a consumer set up by a base that still distributed .github/workflows/swift-lint.yml.
-install_legacy_workflow() {
-  local p="$1" manifest="$1/.ai/managed-files.sha256" hash
-  mkdir -p "$p/.github/workflows"; printf 'name: Swift lint\n' > "$p/.github/workflows/swift-lint.yml"
-  hash="$(shasum -a 256 "$p/.github/workflows/swift-lint.yml" | awk '{print $1}')"
-  { cat "$manifest"; printf '%s  %s\n' "$hash" .github/workflows/swift-lint.yml; } | LC_ALL=C sort -b -k2 > "$TMP/legacy-manifest"
+# Simulates a consumer set up by a base that still distributed the file $2 with content $3.
+install_legacy_file() {
+  local p="$1" rel="$2" manifest="$1/.ai/managed-files.sha256" hash
+  mkdir -p "$p/$(dirname "$rel")"; printf '%s\n' "$3" > "$p/$rel"
+  hash="$(shasum -a 256 "$p/$rel" | awk '{print $1}')"
+  { cat "$manifest"; printf '%s  %s\n' "$hash" "$rel"; } | LC_ALL=C sort -b -k2 > "$TMP/legacy-manifest"
   cp "$TMP/legacy-manifest" "$manifest"
 }
+install_legacy_workflow() { install_legacy_file "$1" .github/workflows/swift-lint.yml 'name: Swift lint'; }
+install_legacy_agents() { install_legacy_file "$1" .codex/agents/luna.toml 'name = "luna"'; install_legacy_file "$1" .codex/agents/sol.toml 'name = "sol"'; }
 test_retired_workflow() {
   local intact="$TMP/retired intact" deleted="$TMP/retired deleted" edited="$TMP/retired edited" rollback="$TMP/retired rollback" before="$TMP/retired-rollback-before" p
   for p in "$intact" "$deleted" "$edited" "$rollback"; do
@@ -180,6 +184,46 @@ test_retired_workflow() {
   if run_update_fail "$rollback" after-claude-skills; then fail retired-rollback; fi
   snapshot "$rollback" "$TMP/retired-rollback-after"
   cmp -s "$before" "$TMP/retired-rollback-after" || { diff -u "$before" "$TMP/retired-rollback-after" >&2 || true; fail retired-rollback-state; }
+}
+test_retired_agents() {
+  local intact="$TMP/agents intact" deleted="$TMP/agents deleted" edited="$TMP/agents edited" custom="$TMP/agents custom" rollback="$TMP/agents rollback" before="$TMP/agents-rollback-before" p
+  for p in "$intact" "$deleted" "$edited" "$custom" "$rollback"; do
+    consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail retired-agents-bootstrap; }
+    install_legacy_agents "$p"
+  done
+  run_update "$intact" || { cat "$TMP/out"; fail retired-agents-intact-update; }
+  [[ ! -e "$intact/.codex" ]] || fail retired-agents-intact-removed
+  if grep -Fq '.codex/' "$intact/.ai/managed-files.sha256"; then fail retired-agents-intact-manifest; fi
+  grep -Fq 'Arquivo removido (não é mais distribuído pela base): .codex/agents/sol.toml' "$TMP/out" || { cat "$TMP/out"; fail retired-agents-message; }
+  rm "$deleted/.codex/agents/luna.toml"
+  run_update "$deleted" || { cat "$TMP/out"; fail retired-agents-deleted-update; }
+  [[ ! -e "$deleted/.codex" ]] || fail retired-agents-deleted-removed
+  if grep -Fq '.codex/' "$deleted/.ai/managed-files.sha256"; then fail retired-agents-deleted-manifest; fi
+  printf 'model = "local"\n' >> "$edited/.codex/agents/sol.toml"
+  run_update "$edited" || { cat "$TMP/out"; fail retired-agents-edited-update; }
+  grep -Fq 'model = "local"' "$edited/.codex/agents/sol.toml" || fail retired-agents-edited-preserved
+  [[ ! -e "$edited/.codex/agents/luna.toml" ]] || fail retired-agents-edited-intact-removed
+  grep -Fq '.codex/agents/sol.toml não é mais distribuído' "$TMP/out" || { cat "$TMP/out"; fail retired-agents-edited-warning; }
+  if grep -Fq '.codex/' "$edited/.ai/managed-files.sha256"; then fail retired-agents-edited-manifest; fi
+  run_update "$edited" || { cat "$TMP/out"; fail retired-agents-edited-idempotent; }
+  printf 'custom agent\n' > "$custom/.codex/agents/custom.toml"
+  run_update "$custom" || { cat "$TMP/out"; fail retired-agents-custom-update; }
+  [[ "$(<"$custom/.codex/agents/custom.toml")" == 'custom agent' && ! -e "$custom/.codex/agents/sol.toml" && ! -e "$custom/.codex/agents/luna.toml" ]] || fail retired-agents-custom-preserved
+  snapshot "$rollback" "$before"
+  if run_update_fail "$rollback" after-claude-skills; then fail retired-agents-rollback; fi
+  snapshot "$rollback" "$TMP/agents-rollback-after"
+  cmp -s "$before" "$TMP/agents-rollback-after" || { diff -u "$before" "$TMP/agents-rollback-after" >&2 || true; fail retired-agents-rollback-state; }
+}
+# Project documents are never rewritten; the update only points out wording that named the fixed agents.
+test_stale_agent_references() {
+  local p="$TMP/stale guide"
+  consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail stale-guide-bootstrap; }
+  if grep -Fq 'cita os agentes fixos' "$TMP/out"; then fail stale-guide-false-positive; fi
+  printf 'intro\n- Planejamento: `sol` (papel conceitual Manager)\nOs IDs vêm dos TOML compartilhados.\n' > "$p/.ai/PROJECT_GUIDE.md"
+  cp "$p/.ai/PROJECT_GUIDE.md" "$TMP/stale-guide-before"
+  run_update "$p" || { cat "$TMP/out"; fail stale-guide-update; }
+  grep -Fq '.ai/PROJECT_GUIDE.md cita os agentes fixos sol/luna ou seus TOML (linhas 2,3)' "$TMP/out" || { cat "$TMP/out"; fail stale-guide-warning; }
+  cmp -s "$p/.ai/PROJECT_GUIDE.md" "$TMP/stale-guide-before" || fail stale-guide-preserved
 }
 test_lint_config_adoption() {
   local p="$TMP/adopt consumer" manifest
@@ -274,8 +318,8 @@ test_claude_skills() {
 test_layout_and_idempotence() {
   consumer "$CONSUMER"; printf 'consumer readme\n' > "$CONSUMER/README.md"; run_bootstrap "$CONSUMER" || { cat "$TMP/out"; fail bootstrap; }
   [[ -d "$CONSUMER/.ai/shared" ]] || fail submodule; abslink "$CONSUMER/AGENTS.md" '.ai/shared/AGENTS.md'; abslink "$CONSUMER/.ai/CODEX_ORCHESTRATOR.md" 'shared/.ai/CODEX_ORCHESTRATOR.md'; abslink "$CONSUMER/.ai/SWIFT_REFERENCE.md" 'shared/.ai/SWIFT_REFERENCE.md'
-  copy "$CONSUMER/.codex/agents/luna.toml" "$SEED/.codex/agents/luna.toml"; copy "$CONSUMER/.codex/agents/sol.toml" "$SEED/.codex/agents/sol.toml"; copy "$CONSUMER/.agents/skills/example/SKILL.md" "$SEED/.agents/skills/example/SKILL.md"; copy "$CONSUMER/.agents/skills/example/assets/logo.bin" "$SEED/.agents/skills/example/assets/logo.bin"
-  [[ "$(<"$CONSUMER/README.md")" == 'consumer readme' ]] || fail README; [[ ! -e "$TMP/home/.codex/agents/luna.toml" && ! -e "$TMP/codex/agents/luna.toml" ]] || fail global-write; run_bootstrap "$CONSUMER" || { cat "$TMP/out"; fail idempotence; }
+  copy "$CONSUMER/$HELPER" "$SEED/$HELPER"; [[ ! -e "$CONSUMER/.codex" ]] || fail agents-installed; copy "$CONSUMER/.agents/skills/example/SKILL.md" "$SEED/.agents/skills/example/SKILL.md"; copy "$CONSUMER/.agents/skills/example/assets/logo.bin" "$SEED/.agents/skills/example/assets/logo.bin"
+  [[ "$(<"$CONSUMER/README.md")" == 'consumer readme' ]] || fail README; [[ ! -e "$TMP/home/.codex" && ! -e "$TMP/codex" ]] || fail global-write; run_bootstrap "$CONSUMER" || { cat "$TMP/out"; fail idempotence; }
 }
 test_backup_and_preflight() {
   local p="$TMP/backup"; consumer "$p"; printf local > "$p/AGENTS.md"; run_bootstrap "$p" || fail backup; [[ "$(<"$p/AGENTS_backup.md")" == local ]] || fail backup-content
@@ -283,22 +327,23 @@ test_backup_and_preflight() {
 }
 test_documents_and_conflicts() {
   local p="$TMP/documents"; consumer "$p"; mkdir "$p/.ai"; printf own > "$p/.ai/PROJECT_BRIEF.md"; printf own-guide > "$p/.ai/PROJECT_GUIDE.md"; run_bootstrap "$p" || fail docs; [[ "$(<"$p/.ai/PROJECT_BRIEF.md")" == own && "$(<"$p/.ai/PROJECT_GUIDE.md")" == own-guide ]] || fail docs-preserved
-  local q="$TMP/conflict"; consumer "$q"; mkdir -p "$q/.codex/agents"; printf mine > "$q/.codex/agents/luna.toml"; if run_bootstrap "$q"; then fail managed-conflict; fi; [[ "$(<"$q/.codex/agents/luna.toml")" == mine ]] || fail conflict-overwrite
+  local q="$TMP/conflict"; consumer "$q"; mkdir -p "$q/.agents/skills/helper"; printf mine > "$q/$HELPER"; if run_bootstrap "$q"; then fail managed-conflict; fi; [[ "$(<"$q/$HELPER")" == mine ]] || fail conflict-overwrite
 }
 test_update_safety() {
-  local p="$TMP/update"; consumer "$p"; run_bootstrap "$p" || fail update-bootstrap; printf extra > "$p/.agents/skills/custom.txt"; printf agent-extra > "$p/.codex/agents/custom.toml"
-  printf 'luna v2\n' > "$SEED/.codex/agents/luna.toml"; rm "$SEED/.agents/skills/example/a"; printf new > "$SEED/.agents/skills/example/ab"; printf 'skill v2\n' > "$SEED/.agents/skills/example/SKILL.md"; git -C "$SEED" add -A; git -C "$SEED" commit -m v2 >/dev/null; git -C "$SEED" push >/dev/null
-  run_update "$p" || { cat "$TMP/out"; fail update; }; [[ "$(<"$p/.codex/agents/luna.toml")" == 'luna v2' ]] || fail update-copy; [[ -e "$p/.codex/agents/sol.toml" && ! -e "$p/.agents/skills/example/a" && -e "$p/.agents/skills/example/ab" ]] || fail exact-obsolete-removal; [[ "$(<"$p/.agents/skills/custom.txt")" == extra && "$(<"$p/.codex/agents/custom.toml")" == agent-extra ]] || fail extras
+  local p="$TMP/update"; consumer "$p"; run_bootstrap "$p" || fail update-bootstrap; printf extra > "$p/.agents/skills/custom.txt"; mkdir -p "$p/.codex/agents"; printf agent-extra > "$p/.codex/agents/custom.toml"
+  printf 'helper v2\n' > "$SEED/$HELPER"; rm "$SEED/.agents/skills/example/a"; printf new > "$SEED/.agents/skills/example/ab"; printf 'skill v2\n' > "$SEED/.agents/skills/example/SKILL.md"; git -C "$SEED" add -A; git -C "$SEED" commit -m v2 >/dev/null; git -C "$SEED" push >/dev/null
+  run_update "$p" || { cat "$TMP/out"; fail update; }; [[ "$(<"$p/$HELPER")" == 'helper v2' ]] || fail update-copy; [[ -e "$p/.agents/skills/example/SKILL.md" && ! -e "$p/.agents/skills/example/a" && -e "$p/.agents/skills/example/ab" ]] || fail exact-obsolete-removal; [[ "$(<"$p/.agents/skills/custom.txt")" == extra && "$(<"$p/.codex/agents/custom.toml")" == agent-extra ]] || fail extras
   printf local-lint-edit > "$p/.swiftlint.yml"
   printf 'config marker\n' > "$SEED/.agents/skills/example/config-update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m config-update >/dev/null; git -C "$SEED" push >/dev/null
   if run_update "$p"; then fail edited-lint-config; fi
   [[ "$(<"$p/.swiftlint.yml")" == local-lint-edit ]] || fail edited-lint-config-overwrite
   cp "$SEED/.swiftlint.yml" "$p/.swiftlint.yml"
-  printf edited > "$p/.codex/agents/luna.toml"; printf 'luna v3\n' > "$SEED/.codex/agents/luna.toml"; git -C "$SEED" add -A; git -C "$SEED" commit -m v3 >/dev/null; git -C "$SEED" push >/dev/null; if run_update "$p"; then fail edited-managed; fi; [[ "$(<"$p/.codex/agents/luna.toml")" == edited ]] || fail edited-overwrite
+  printf edited > "$p/$HELPER"; printf 'helper v3\n' > "$SEED/$HELPER"; git -C "$SEED" add -A; git -C "$SEED" commit -m v3 >/dev/null; git -C "$SEED" push >/dev/null; if run_update "$p"; then fail edited-managed; fi; [[ "$(<"$p/$HELPER")" == edited ]] || fail edited-overwrite
 }
-test_old_paths_and_missing_agents() {
-  local p="$TMP/old-symlink" q="$TMP/missing-sol" outside="$TMP/outside-old" before="$TMP/missing-before"; consumer "$p"; run_bootstrap "$p" || fail old-bootstrap; mkdir "$outside"; printf outside > "$outside/ab"; rm -rf "$p/.agents/skills/example"; ln -s "$outside" "$p/.agents/skills/example"; rm "$SEED/.agents/skills/example/ab"; git -C "$SEED" add -A; git -C "$SEED" commit -m remove-ab >/dev/null; git -C "$SEED" push >/dev/null; if run_update "$p"; then fail old-symlink; fi; [[ "$(<"$outside/ab")" == outside ]] || fail outside-overwrite
-  consumer "$q"; run_bootstrap "$q" || fail missing-agent-bootstrap; snapshot "$q" "$before"; rm "$SEED/.codex/agents/sol.toml"; git -C "$SEED" add -A; git -C "$SEED" commit -m remove-sol >/dev/null; git -C "$SEED" push >/dev/null; if run_update "$q"; then fail missing-sol; fi; snapshot "$q" "$TMP/missing-after"; cmp -s "$before" "$TMP/missing-after" || fail missing-sol-mutation
+test_old_paths_and_missing_dependency() {
+  local p="$TMP/old-symlink" q="$TMP/missing-reference" outside="$TMP/outside-old" before="$TMP/missing-before"; consumer "$p"; run_bootstrap "$p" || fail old-bootstrap; mkdir "$outside"; printf outside > "$outside/ab"; rm -rf "$p/.agents/skills/example"; ln -s "$outside" "$p/.agents/skills/example"; rm "$SEED/.agents/skills/example/ab"; git -C "$SEED" add -A; git -C "$SEED" commit -m remove-ab >/dev/null; git -C "$SEED" push >/dev/null; if run_update "$p"; then fail old-symlink; fi; [[ "$(<"$outside/ab")" == outside ]] || fail outside-overwrite
+  consumer "$q"; run_bootstrap "$q" || fail missing-reference-bootstrap; snapshot "$q" "$before"; git -C "$SEED" rm -q .ai/SWIFT_REFERENCE.md; git -C "$SEED" commit -m remove-reference >/dev/null; git -C "$SEED" push >/dev/null; if run_update "$q"; then fail missing-reference; fi; grep -Fq 'dependência sem .ai/SWIFT_REFERENCE.md' "$TMP/out" || fail missing-reference-message; snapshot "$q" "$TMP/missing-after"; cmp -s "$before" "$TMP/missing-after" || fail missing-reference-mutation
+  git -C "$SEED" checkout -q HEAD~1 -- .ai/SWIFT_REFERENCE.md; git -C "$SEED" commit -qm restore-reference; git -C "$SEED" push >/dev/null
 }
 test_remote_advance_after_candidate() {
   local p="$TMP/candidate-race" gate="$TMP/candidate-gate" candidate pid attempts=0; consumer "$p"; mkdir "$gate"; candidate="$(git -C "$SEED" rev-parse HEAD)"
@@ -310,30 +355,30 @@ test_remote_advance_after_candidate() {
   [[ "$(git -C "$p/.ai/shared" rev-parse HEAD)" == "$candidate" ]] || fail candidate-head; [[ ! -e "$p/.agents/skills/example/race-marker" ]] || fail candidate-content
 }
 test_edit_during_candidate_pause() {
-  local p="$TMP/concurrent-edit" gate="$TMP/concurrent-gate" pid attempts=0; consumer "$p"; run_bootstrap "$p" || fail concurrent-bootstrap; mkdir "$gate"; printf remote > "$SEED/.codex/agents/luna.toml"; git -C "$SEED" add -A; git -C "$SEED" commit -m concurrent >/dev/null; git -C "$SEED" push >/dev/null
-  (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_CANDIDATE="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/concurrent.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail concurrent-pause; printf user-edit > "$p/.codex/agents/luna.toml"; : > "$gate/continue"; if wait "$pid"; then fail concurrent-update; fi; [[ "$(<"$p/.codex/agents/luna.toml")" == user-edit ]] || fail concurrent-overwrite
+  local p="$TMP/concurrent-edit" gate="$TMP/concurrent-gate" pid attempts=0; consumer "$p"; run_bootstrap "$p" || fail concurrent-bootstrap; mkdir "$gate"; printf remote > "$SEED/$HELPER"; git -C "$SEED" add -A; git -C "$SEED" commit -m concurrent >/dev/null; git -C "$SEED" push >/dev/null
+  (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_CANDIDATE="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/concurrent.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail concurrent-pause; printf user-edit > "$p/$HELPER"; : > "$gate/continue"; if wait "$pid"; then fail concurrent-update; fi; [[ "$(<"$p/$HELPER")" == user-edit ]] || fail concurrent-overwrite
 }
 test_edit_after_backup_pause() {
-  local p="$TMP/edit-after-backup" gate="$TMP/edit-after-backup-gate" before="$TMP/edit-after-backup-before" pid attempts=0; consumer "$p"; run_bootstrap "$p" || fail backup-pause-bootstrap; printf remote-backup > "$SEED/.codex/agents/luna.toml"; git -C "$SEED" add -A; git -C "$SEED" commit -m backup-pause >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; mkdir "$gate"
-  (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/backup-pause.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail backup-pause-ready; printf user-edit > "$p/.codex/agents/luna.toml"; : > "$gate/continue"; if wait "$pid"; then fail backup-pause-update; fi; [[ "$(<"$p/.codex/agents/luna.toml")" == user-edit ]] || fail backup-pause-overwrite; [[ -f "$p/.ai/managed-files.sha256" && -f "$p/.codex/agents/sol.toml" && -d "$p/.ai/shared" ]] || fail backup-pause-state
+  local p="$TMP/edit-after-backup" gate="$TMP/edit-after-backup-gate" before="$TMP/edit-after-backup-before" pid attempts=0; consumer "$p"; run_bootstrap "$p" || fail backup-pause-bootstrap; printf remote-backup > "$SEED/$HELPER"; git -C "$SEED" add -A; git -C "$SEED" commit -m backup-pause >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; mkdir "$gate"
+  (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/backup-pause.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail backup-pause-ready; printf user-edit > "$p/$HELPER"; : > "$gate/continue"; if wait "$pid"; then fail backup-pause-update; fi; [[ "$(<"$p/$HELPER")" == user-edit ]] || fail backup-pause-overwrite; [[ -f "$p/.ai/managed-files.sha256" && -f "$p/.agents/skills/example/SKILL.md" && -d "$p/.ai/shared" ]] || fail backup-pause-state
 }
 test_new_collision_after_backup_pause() {
   local p="$TMP/new-after-backup" gate="$TMP/new-after-backup-gate" pid attempts=0; consumer "$p"; run_bootstrap "$p" || fail new-backup-bootstrap; printf upstream-new > "$SEED/.agents/skills/example/new-after-backup"; git -C "$SEED" add -A; git -C "$SEED" commit -m new-backup >/dev/null; git -C "$SEED" push >/dev/null; mkdir "$gate"
   (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/new-backup.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail new-backup-ready; printf user-new > "$p/.agents/skills/example/new-after-backup"; : > "$gate/continue"; if wait "$pid"; then fail new-backup-update; fi; [[ "$(<"$p/.agents/skills/example/new-after-backup")" == user-new ]] || fail new-backup-overwrite
 }
 test_edit_after_first_copy_pause() {
-  local p="$TMP/edit-after-copy" gate="$TMP/edit-after-copy-gate" before="$TMP/edit-after-copy-before" pid attempts=0 old_skill; consumer "$p"; run_bootstrap "$p" || fail first-copy-bootstrap; old_skill="$(<"$p/.agents/skills/example/SKILL.md")"; printf upstream-skill > "$SEED/.agents/skills/example/SKILL.md"; printf upstream-luna > "$SEED/.codex/agents/luna.toml"; git -C "$SEED" add -A; git -C "$SEED" commit -m first-copy >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; mkdir "$gate"
-  (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_FIRST_COPY="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/first-copy.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail first-copy-ready; printf user-edit > "$p/.codex/agents/luna.toml"; : > "$gate/continue"; if wait "$pid"; then fail first-copy-update; fi; [[ "$(<"$p/.codex/agents/luna.toml")" == user-edit ]] || fail first-copy-overwrite; [[ "$(<"$p/.agents/skills/example/SKILL.md")" == "$old_skill" ]] || fail first-copy-skill; [[ -f "$p/.ai/managed-files.sha256" && -d "$p/.ai/shared" ]] || fail first-copy-state
+  local p="$TMP/edit-after-copy" gate="$TMP/edit-after-copy-gate" before="$TMP/edit-after-copy-before" pid attempts=0 old_skill; consumer "$p"; run_bootstrap "$p" || fail first-copy-bootstrap; old_skill="$(<"$p/.agents/skills/example/SKILL.md")"; printf upstream-skill > "$SEED/.agents/skills/example/SKILL.md"; printf upstream-helper > "$SEED/$HELPER"; git -C "$SEED" add -A; git -C "$SEED" commit -m first-copy >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; mkdir "$gate"
+  (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_FIRST_COPY="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/first-copy.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail first-copy-ready; printf user-edit > "$p/$HELPER"; : > "$gate/continue"; if wait "$pid"; then fail first-copy-update; fi; [[ "$(<"$p/$HELPER")" == user-edit ]] || fail first-copy-overwrite; [[ "$(<"$p/.agents/skills/example/SKILL.md")" == "$old_skill" ]] || fail first-copy-skill; [[ -f "$p/.ai/managed-files.sha256" && -d "$p/.ai/shared" ]] || fail first-copy-state
 }
 test_bootstrap_edit_after_backup_pause() {
-  local p="$TMP/bootstrap-after-backup" gate="$TMP/bootstrap-after-backup-gate" pid attempts=0; consumer "$p"; mkdir "$gate"; (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate" bash "$ROOT/scripts/bootstrap-consumer.sh") >"$TMP/bootstrap-backup.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail bootstrap-backup-ready; mkdir -p "$p/.codex/agents"; printf user-edit > "$p/.codex/agents/luna.toml"; : > "$gate/continue"; if wait "$pid"; then fail bootstrap-backup-update; fi; [[ "$(<"$p/.codex/agents/luna.toml")" == user-edit ]] || fail bootstrap-backup-overwrite
+  local p="$TMP/bootstrap-after-backup" gate="$TMP/bootstrap-after-backup-gate" pid attempts=0; consumer "$p"; mkdir "$gate"; (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate" bash "$ROOT/scripts/bootstrap-consumer.sh") >"$TMP/bootstrap-backup.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail bootstrap-backup-ready; mkdir -p "$p/.agents/skills/helper"; printf user-edit > "$p/$HELPER"; : > "$gate/continue"; if wait "$pid"; then fail bootstrap-backup-update; fi; [[ "$(<"$p/$HELPER")" == user-edit ]] || fail bootstrap-backup-overwrite
 }
 test_concurrent_types_after_backup_pause() {
-  local p="$TMP/type-directory-after-backup" q="$TMP/type-symlink-after-backup" gate="$TMP/type-directory-gate" gate2="$TMP/type-symlink-gate" outside="$TMP/type-outside" pid attempts=0 old_head old_manifest old_sol
-  consumer "$p"; run_bootstrap "$p" || fail type-directory-bootstrap; old_head="$(git -C "$p/.ai/shared" rev-parse HEAD)"; old_manifest="$(<"$p/.ai/managed-files.sha256")"; old_sol="$(<"$p/.codex/agents/sol.toml")"; printf type-remote > "$SEED/.agents/skills/example/type-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m type-directory >/dev/null; git -C "$SEED" push >/dev/null; mkdir "$gate"
-  (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/type-directory.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail type-directory-ready; rm "$p/.codex/agents/luna.toml"; mkdir "$p/.codex/agents/luna.toml"; : > "$gate/continue"; if wait "$pid"; then fail type-directory-update; fi; [[ -d "$p/.codex/agents/luna.toml" && "$(git -C "$p/.ai/shared" rev-parse HEAD)" == "$old_head" && "$(<"$p/.ai/managed-files.sha256")" == "$old_manifest" && "$(<"$p/.codex/agents/sol.toml")" == "$old_sol" ]] || fail type-directory-preserved
-  consumer "$q"; run_bootstrap "$q" || fail type-symlink-bootstrap; mkdir "$outside"; printf outside > "$outside/luna"; printf type-remote-2 > "$SEED/.agents/skills/example/type-marker-2"; git -C "$SEED" add -A; git -C "$SEED" commit -m type-symlink >/dev/null; git -C "$SEED" push >/dev/null; mkdir "$gate2"; attempts=0
-  (cd "$q" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate2" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/type-symlink.out" 2>&1 & pid=$!; while [[ ! -f "$gate2/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate2/ready" ]] || fail type-symlink-ready; rm "$q/.codex/agents/luna.toml"; ln -s "$outside/luna" "$q/.codex/agents/luna.toml"; : > "$gate2/continue"; if wait "$pid"; then fail type-symlink-update; fi; [[ -L "$q/.codex/agents/luna.toml" && "$(readlink "$q/.codex/agents/luna.toml")" == "$outside/luna" && "$(<"$outside/luna")" == outside ]] || fail type-symlink-preserved
+  local p="$TMP/type-directory-after-backup" q="$TMP/type-symlink-after-backup" gate="$TMP/type-directory-gate" gate2="$TMP/type-symlink-gate" outside="$TMP/type-outside" pid attempts=0 old_head old_manifest old_skill
+  consumer "$p"; run_bootstrap "$p" || fail type-directory-bootstrap; old_head="$(git -C "$p/.ai/shared" rev-parse HEAD)"; old_manifest="$(<"$p/.ai/managed-files.sha256")"; old_skill="$(<"$p/.agents/skills/example/SKILL.md")"; printf type-remote > "$SEED/.agents/skills/example/type-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m type-directory >/dev/null; git -C "$SEED" push >/dev/null; mkdir "$gate"
+  (cd "$p" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/type-directory.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail type-directory-ready; rm "$p/$HELPER"; mkdir "$p/$HELPER"; : > "$gate/continue"; if wait "$pid"; then fail type-directory-update; fi; [[ -d "$p/$HELPER" && "$(git -C "$p/.ai/shared" rev-parse HEAD)" == "$old_head" && "$(<"$p/.ai/managed-files.sha256")" == "$old_manifest" && "$(<"$p/.agents/skills/example/SKILL.md")" == "$old_skill" ]] || fail type-directory-preserved
+  consumer "$q"; run_bootstrap "$q" || fail type-symlink-bootstrap; mkdir "$outside"; printf outside > "$outside/helper"; printf type-remote-2 > "$SEED/.agents/skills/example/type-marker-2"; git -C "$SEED" add -A; git -C "$SEED" commit -m type-symlink >/dev/null; git -C "$SEED" push >/dev/null; mkdir "$gate2"; attempts=0
+  (cd "$q" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_BACKUP="$gate2" bash "$ROOT/scripts/update-consumer.sh") >"$TMP/type-symlink.out" 2>&1 & pid=$!; while [[ ! -f "$gate2/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate2/ready" ]] || fail type-symlink-ready; rm "$q/$HELPER"; ln -s "$outside/helper" "$q/$HELPER"; : > "$gate2/continue"; if wait "$pid"; then fail type-symlink-update; fi; [[ -L "$q/$HELPER" && "$(readlink "$q/$HELPER")" == "$outside/helper" && "$(<"$outside/helper")" == outside ]] || fail type-symlink-preserved
 }
 test_edit_already_copied_after_first_copy() {
   local p="$TMP/copied-change" gate="$TMP/copied-change-gate" pid attempts=0 old_head old_manifest
@@ -356,7 +401,24 @@ test_submodule_preflight_and_concurrent_edits() {
   consumer "$race"; run_bootstrap "$race" || fail shared-race-bootstrap; mkdir "$gate"; (cd "$race" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_SUBMODULE="$gate" AI_TEST_FAIL_AT=after-submodule bash "$ROOT/scripts/update-consumer.sh") >"$TMP/shared-race.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail shared-race-ready; printf dirty-concurrent > "$race/.ai/shared/AGENTS.md"; : > "$gate/continue"; if wait "$pid"; then fail shared-race-update; fi; [[ "$(<"$race/.ai/shared/AGENTS.md")" == dirty-concurrent ]] || fail shared-race-overwrite; grep -Fq 'rollback preservou alterações concorrentes no submodule' "$TMP/shared-race.out" || fail shared-race-report
   consumer "$created"; mkdir "$gate2"; attempts=0; (cd "$created" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_SUBMODULE="$gate2" AI_TEST_FAIL_AT=after-submodule bash "$ROOT/scripts/bootstrap-consumer.sh") >"$TMP/shared-created-race.out" 2>&1 & pid=$!; while [[ ! -f "$gate2/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate2/ready" ]] || fail shared-created-race-ready; printf dirty-created > "$created/.ai/shared/AGENTS.md"; : > "$gate2/continue"; if wait "$pid"; then fail shared-created-race-update; fi; [[ "$(<"$created/.ai/shared/AGENTS.md")" == dirty-created && -d "$created/.git/modules/.ai/shared" ]] || fail shared-created-race-overwrite; grep -Fq 'rollback preservou alterações concorrentes no submodule criado' "$TMP/shared-created-race.out" || fail shared-created-race-report
 }
-test_tomls() { grep -Fq 'name = "luna"' "$ROOT/.codex/agents/luna.toml"; grep -Fq 'model = "gpt-6-luna"' "$ROOT/.codex/agents/luna.toml"; grep -Fq 'name = "sol"' "$ROOT/.codex/agents/sol.toml"; grep -Fq 'model = "gpt-6-sol"' "$ROOT/.codex/agents/sol.toml"; }
+# The base keeps the Manager -> Developer -> Manager cycle without fixed agents, names or models.
+test_role_docs() {
+  local doc
+  [[ ! -e "$ROOT/.codex" ]] || fail fixed-agents-distributed
+  for doc in AGENTS.md .ai/CODEX_ORCHESTRATOR.md .ai/PROJECT_GUIDE.template.md README.md; do
+    grep -Fq 'Manager' "$ROOT/$doc" && grep -Fq 'Developer' "$ROOT/$doc" || fail "roles-$doc"
+  done
+  grep -Fqx '## Instruções do papel Manager' "$ROOT/.ai/CODEX_ORCHESTRATOR.md" || fail manager-instructions
+  grep -Fqx '## Instruções do papel Developer' "$ROOT/.ai/CODEX_ORCHESTRATOR.md" || fail developer-instructions
+  # The orchestrator may name the retired TOML files in its migration note, but never dispatch to them.
+  if grep -nE '`(sol|luna)`|TOML compartilhados|gpt-6-(sol|luna)' "$ROOT/.ai/CODEX_ORCHESTRATOR.md"; then
+    fail orchestrator-fixed-agents
+  fi
+  if grep -nE '`(sol|luna)`|(sol|luna)\.toml|TOML compartilhados|gpt-6-(sol|luna)' "$ROOT/.ai/PROJECT_GUIDE.template.md" \
+    "$ROOT/.ai/PROJECT_BRIEF.template.md" "$ROOT/.ai/SWIFT_REFERENCE.md"; then
+    fail fixed-agent-references
+  fi
+}
 test_unsafe_paths() {
   local p="$TMP/unsafe-manifest"; consumer "$p"; mkdir -p "$p/.ai"; printf 'not a manifest\n' > "$p/.ai/managed-files.sha256"; if run_bootstrap "$p"; then fail invalid-manifest; fi; [[ ! -e "$p/.ai/shared" ]] || fail invalid-manifest-mutation
   local q="$TMP/unsafe-symlink"; consumer "$q"; mkdir -p "$q/.codex"; ln -s "$TMP" "$q/.codex/agents"; if run_bootstrap "$q"; then fail managed-symlink; fi; [[ ! -e "$q/.ai/shared" ]] || fail symlink-mutation
@@ -379,9 +441,9 @@ test_new_collision_and_rollback() {
 test_rollback() { local before="$TMP/rollback-before" point q; for point in after-submodule after-agents-move during-copy; do q="$TMP/rollback-$point"; consumer "$q"; printf original > "$q/AGENTS.md"; snapshot "$q" "$before"; if run_bootstrap_fail "$q" "$point"; then fail "rollback-$point"; fi; snapshot "$q" "$TMP/after-$point"; cmp -s "$before" "$TMP/after-$point" || fail "rollback-state-$point"; if [[ "$point" == after-submodule ]]; then [[ ! -e "$q/.git/modules/.ai/shared" ]] || fail rollback-submodule-metadata; fi; done; }
 test_modified_assets_and_special_destinations() {
   local p="$TMP/modified-assets" q="$TMP/directory-destination" r="$TMP/fifo-destination"; consumer "$p"; run_bootstrap "$p" || fail modified-bootstrap; printf local-skill > "$p/.agents/skills/example/SKILL.md"; printf '\007\006' > "$p/.agents/skills/example/assets/logo.bin"; if run_update "$p"; then fail modified-assets; fi; [[ "$(<"$p/.agents/skills/example/SKILL.md")" == local-skill ]] || fail skill-overwrite; cmp -s "$p/.agents/skills/example/assets/logo.bin" <(printf '\007\006') || fail asset-overwrite
-  consumer "$q"; mkdir -p "$q/.codex/agents/luna.toml"; if run_bootstrap "$q"; then fail directory-destination; fi; [[ ! -e "$q/.ai/shared" ]] || fail directory-mutation
-  consumer "$r"; mkdir -p "$r/.codex/agents"; mkfifo "$r/.codex/agents/luna.toml"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
+  consumer "$q"; mkdir -p "$q/$HELPER"; if run_bootstrap "$q"; then fail directory-destination; fi; [[ ! -e "$q/.ai/shared" ]] || fail directory-mutation
+  consumer "$r"; mkdir -p "$r/.agents/skills/helper"; mkfifo "$r/$HELPER"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
 }
 test_update_rollback() { local p="$TMP/update-rollback" before="$TMP/update-rollback-before"; consumer "$p"; run_bootstrap "$p" || fail update-rollback-bootstrap; printf remote-change > "$SEED/.agents/skills/example/update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m update-rollback >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; if run_update_fail "$p" after-submodule; then fail update-rollback; fi; snapshot "$p" "$TMP/update-rollback-after"; if ! cmp -s "$before" "$TMP/update-rollback-after"; then diff -u "$before" "$TMP/update-rollback-after" >&2 || true; fail update-rollback-state; fi; }
-seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_retired_workflow; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_agents; test_tomls
+seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_retired_workflow; test_retired_agents; test_stale_agent_references; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_dependency; test_role_docs
 echo 'OK: consumer setup tests'

@@ -27,17 +27,17 @@ escopo explícito.
 ## Coordenação dos subagentes
 
 Use os papéis definidos no `AGENTS.md` e detalhados no
-`.ai/CODEX_ORCHESTRATOR.md`:
+`.ai/CODEX_ORCHESTRATOR.md`, executados por subagentes que o agente principal
+cria com a ferramenta em uso:
 
-- Planejamento: `sol` (papel conceitual Manager), somente leitura.
-- Implementação e correções: `luna` (papel conceitual Developer).
-- Revisão: `sol` (papel conceitual Manager), somente leitura.
+- Planejamento: subagente no papel Manager, somente leitura.
+- Implementação e correções: subagente no papel Developer.
+- Revisão: subagente no papel Manager, somente leitura.
 
 O ciclo é Manager planeja → Developer implementa e valida → Manager revisa →
 Developer corrige → Manager revisa novamente até resolver todos os apontamentos.
-Os IDs técnicos vêm do campo `name` dos TOML compartilhados. Confira os valores
-de modelo e esforço que o runtime expõe contra esses TOML; bloqueie se forem
-divergentes e declare a limitação quando a ferramenta não expuser esses dados.
+A base não fixa agentes, nomes nem modelos; registre aqui somente preferências
+ou exceções do projeto.
 
 ## Arquitetura
 
