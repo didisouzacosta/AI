@@ -24,7 +24,7 @@ seed() {
   git init --bare "$REMOTE" >/dev/null
   mkdir -p "$SEED/.ai" "$SEED/.agents/skills/example/assets" "$SEED/.agents/skills/helper" \
     "$SEED/scripts"
-  printf '# agents\n' > "$SEED/AGENTS.md"; printf '# orchestrator\n' > "$SEED/.ai/CODEX_ORCHESTRATOR.md"; printf '# swift\n' > "$SEED/.ai/SWIFT_REFERENCE.md"
+  printf '# agents\n' > "$SEED/AGENTS.md"; printf '# swift\n' > "$SEED/.ai/SWIFT_REFERENCE.md"
   printf 'brief v1\n' > "$SEED/.ai/PROJECT_BRIEF.template.md"; printf 'guide v1\n' > "$SEED/.ai/PROJECT_GUIDE.template.md"
   printf 'helper v1\n' > "$SEED/$HELPER"; printf 'skill v1\n' > "$SEED/.agents/skills/example/SKILL.md"; printf old > "$SEED/.agents/skills/example/a"; printf '\001\002\377' > "$SEED/.agents/skills/example/assets/logo.bin"
   cp "$ROOT/.swiftlint.yml" "$SEED/.swiftlint.yml"
@@ -225,6 +225,32 @@ test_stale_agent_references() {
   grep -Fq '.ai/PROJECT_GUIDE.md cita os agentes fixos sol/luna ou seus TOML (linhas 2,3)' "$TMP/out" || { cat "$TMP/out"; fail stale-guide-warning; }
   cmp -s "$p/.ai/PROJECT_GUIDE.md" "$TMP/stale-guide-before" || fail stale-guide-preserved
 }
+# Earlier versions linked .ai/CODEX_ORCHESTRATOR.md into consumers; only that exact link is removed.
+test_retired_orchestrator_link() {
+  local linked="$TMP/orchestrator linked" local_file="$TMP/orchestrator local" other="$TMP/orchestrator other" stale="$TMP/orchestrator stale" rollback="$TMP/orchestrator rollback" before="$TMP/orchestrator-rollback-before" p
+  for p in "$linked" "$local_file" "$other" "$stale" "$rollback"; do
+    consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail retired-orchestrator-bootstrap; }
+  done
+  for p in "$linked" "$rollback"; do ln -s shared/.ai/CODEX_ORCHESTRATOR.md "$p/.ai/CODEX_ORCHESTRATOR.md"; done
+  run_update "$linked" || { cat "$TMP/out"; fail retired-orchestrator-update; }
+  [[ ! -e "$linked/.ai/CODEX_ORCHESTRATOR.md" && ! -L "$linked/.ai/CODEX_ORCHESTRATOR.md" ]] || fail retired-orchestrator-removed
+  grep -Fq 'Link removido (o orquestrador agora faz parte de AGENTS.md): .ai/CODEX_ORCHESTRATOR.md' "$TMP/out" || { cat "$TMP/out"; fail retired-orchestrator-message; }
+  run_update "$linked" || { cat "$TMP/out"; fail retired-orchestrator-idempotent; }
+  printf 'local notes\n' > "$local_file/.ai/CODEX_ORCHESTRATOR.md"
+  run_update "$local_file" || { cat "$TMP/out"; fail retired-orchestrator-local-update; }
+  [[ -f "$local_file/.ai/CODEX_ORCHESTRATOR.md" && ! -L "$local_file/.ai/CODEX_ORCHESTRATOR.md" && "$(<"$local_file/.ai/CODEX_ORCHESTRATOR.md")" == 'local notes' ]] || fail retired-orchestrator-local-preserved
+  ln -s ../notes.md "$other/.ai/CODEX_ORCHESTRATOR.md"
+  run_update "$other" || { cat "$TMP/out"; fail retired-orchestrator-other-update; }
+  abslink "$other/.ai/CODEX_ORCHESTRATOR.md" ../notes.md
+  printf 'intro\nDetalhes em `.ai/CODEX_ORCHESTRATOR.md`.\n' > "$stale/.ai/PROJECT_GUIDE.md"; cp "$stale/.ai/PROJECT_GUIDE.md" "$TMP/orchestrator-guide-before"
+  run_update "$stale" || { cat "$TMP/out"; fail retired-orchestrator-stale-update; }
+  grep -Fq '.ai/PROJECT_GUIDE.md cita .ai/CODEX_ORCHESTRATOR.md (linhas 2)' "$TMP/out" || { cat "$TMP/out"; fail retired-orchestrator-stale-warning; }
+  cmp -s "$stale/.ai/PROJECT_GUIDE.md" "$TMP/orchestrator-guide-before" || fail retired-orchestrator-stale-preserved
+  snapshot "$rollback" "$before"
+  if run_update_fail "$rollback" after-claude-skills; then fail retired-orchestrator-rollback; fi
+  snapshot "$rollback" "$TMP/orchestrator-rollback-after"
+  cmp -s "$before" "$TMP/orchestrator-rollback-after" || { diff -u "$before" "$TMP/orchestrator-rollback-after" >&2 || true; fail retired-orchestrator-rollback-state; }
+}
 test_lint_config_adoption() {
   local p="$TMP/adopt consumer" manifest
   consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail adopt-bootstrap; }
@@ -317,7 +343,7 @@ test_claude_skills() {
 }
 test_layout_and_idempotence() {
   consumer "$CONSUMER"; printf 'consumer readme\n' > "$CONSUMER/README.md"; run_bootstrap "$CONSUMER" || { cat "$TMP/out"; fail bootstrap; }
-  [[ -d "$CONSUMER/.ai/shared" ]] || fail submodule; abslink "$CONSUMER/AGENTS.md" '.ai/shared/AGENTS.md'; abslink "$CONSUMER/.ai/CODEX_ORCHESTRATOR.md" 'shared/.ai/CODEX_ORCHESTRATOR.md'; abslink "$CONSUMER/.ai/SWIFT_REFERENCE.md" 'shared/.ai/SWIFT_REFERENCE.md'
+  [[ -d "$CONSUMER/.ai/shared" ]] || fail submodule; abslink "$CONSUMER/AGENTS.md" '.ai/shared/AGENTS.md'; [[ ! -e "$CONSUMER/.ai/CODEX_ORCHESTRATOR.md" && ! -L "$CONSUMER/.ai/CODEX_ORCHESTRATOR.md" ]] || fail orchestrator-linked; abslink "$CONSUMER/.ai/SWIFT_REFERENCE.md" 'shared/.ai/SWIFT_REFERENCE.md'
   copy "$CONSUMER/$HELPER" "$SEED/$HELPER"; [[ ! -e "$CONSUMER/.codex" ]] || fail agents-installed; copy "$CONSUMER/.agents/skills/example/SKILL.md" "$SEED/.agents/skills/example/SKILL.md"; copy "$CONSUMER/.agents/skills/example/assets/logo.bin" "$SEED/.agents/skills/example/assets/logo.bin"
   [[ "$(<"$CONSUMER/README.md")" == 'consumer readme' ]] || fail README; [[ ! -e "$TMP/home/.codex" && ! -e "$TMP/codex" ]] || fail global-write; run_bootstrap "$CONSUMER" || { cat "$TMP/out"; fail idempotence; }
 }
@@ -401,18 +427,21 @@ test_submodule_preflight_and_concurrent_edits() {
   consumer "$race"; run_bootstrap "$race" || fail shared-race-bootstrap; mkdir "$gate"; (cd "$race" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_SUBMODULE="$gate" AI_TEST_FAIL_AT=after-submodule bash "$ROOT/scripts/update-consumer.sh") >"$TMP/shared-race.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail shared-race-ready; printf dirty-concurrent > "$race/.ai/shared/AGENTS.md"; : > "$gate/continue"; if wait "$pid"; then fail shared-race-update; fi; [[ "$(<"$race/.ai/shared/AGENTS.md")" == dirty-concurrent ]] || fail shared-race-overwrite; grep -Fq 'rollback preservou alterações concorrentes no submodule' "$TMP/shared-race.out" || fail shared-race-report
   consumer "$created"; mkdir "$gate2"; attempts=0; (cd "$created" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_SUBMODULE="$gate2" AI_TEST_FAIL_AT=after-submodule bash "$ROOT/scripts/bootstrap-consumer.sh") >"$TMP/shared-created-race.out" 2>&1 & pid=$!; while [[ ! -f "$gate2/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate2/ready" ]] || fail shared-created-race-ready; printf dirty-created > "$created/.ai/shared/AGENTS.md"; : > "$gate2/continue"; if wait "$pid"; then fail shared-created-race-update; fi; [[ "$(<"$created/.ai/shared/AGENTS.md")" == dirty-created && -d "$created/.git/modules/.ai/shared" ]] || fail shared-created-race-overwrite; grep -Fq 'rollback preservou alterações concorrentes no submodule criado' "$TMP/shared-created-race.out" || fail shared-created-race-report
 }
-# The base keeps the Manager -> Developer -> Manager cycle without fixed agents, names or models.
+# The base keeps the Manager -> Developer -> Manager cycle in AGENTS.md without fixed agents, names or models.
 test_role_docs() {
   local doc
   [[ ! -e "$ROOT/.codex" ]] || fail fixed-agents-distributed
-  for doc in AGENTS.md .ai/CODEX_ORCHESTRATOR.md .ai/PROJECT_GUIDE.template.md README.md; do
+  [[ ! -e "$ROOT/.ai/CODEX_ORCHESTRATOR.md" ]] || fail orchestrator-file-distributed
+  for doc in AGENTS.md .ai/PROJECT_GUIDE.template.md README.md; do
     grep -Fq 'Manager' "$ROOT/$doc" && grep -Fq 'Developer' "$ROOT/$doc" || fail "roles-$doc"
   done
-  grep -Fqx '## Instruções do papel Manager' "$ROOT/.ai/CODEX_ORCHESTRATOR.md" || fail manager-instructions
-  grep -Fqx '## Instruções do papel Developer' "$ROOT/.ai/CODEX_ORCHESTRATOR.md" || fail developer-instructions
-  # The orchestrator may name the retired TOML files in its migration note, but never dispatch to them.
-  if grep -nE '`(sol|luna)`|TOML compartilhados|gpt-6-(sol|luna)' "$ROOT/.ai/CODEX_ORCHESTRATOR.md"; then
-    fail orchestrator-fixed-agents
+  grep -Fqx '### Instruções do papel Manager' "$ROOT/AGENTS.md" || fail manager-instructions
+  grep -Fqx '### Instruções do papel Developer' "$ROOT/AGENTS.md" || fail developer-instructions
+  grep -Fqx '### Ciclo e aprovação' "$ROOT/AGENTS.md" || fail cycle-instructions
+  # Only the migration notes may name the retired orchestrator file.
+  if grep -nF 'CODEX_ORCHESTRATOR' "$ROOT/.ai/PROJECT_GUIDE.template.md" "$ROOT/.ai/PROJECT_BRIEF.template.md" \
+    "$ROOT/.ai/SWIFT_REFERENCE.md" "$ROOT/scripts/consumer-next-steps.txt"; then
+    fail orchestrator-references
   fi
   if grep -nE '`(sol|luna)`|(sol|luna)\.toml|TOML compartilhados|gpt-6-(sol|luna)' "$ROOT/.ai/PROJECT_GUIDE.template.md" \
     "$ROOT/.ai/PROJECT_BRIEF.template.md" "$ROOT/.ai/SWIFT_REFERENCE.md"; then
@@ -445,5 +474,5 @@ test_modified_assets_and_special_destinations() {
   consumer "$r"; mkdir -p "$r/.agents/skills/helper"; mkfifo "$r/$HELPER"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
 }
 test_update_rollback() { local p="$TMP/update-rollback" before="$TMP/update-rollback-before"; consumer "$p"; run_bootstrap "$p" || fail update-rollback-bootstrap; printf remote-change > "$SEED/.agents/skills/example/update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m update-rollback >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; if run_update_fail "$p" after-submodule; then fail update-rollback; fi; snapshot "$p" "$TMP/update-rollback-after"; if ! cmp -s "$before" "$TMP/update-rollback-after"; then diff -u "$before" "$TMP/update-rollback-after" >&2 || true; fail update-rollback-state; fi; }
-seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_retired_workflow; test_retired_agents; test_stale_agent_references; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_dependency; test_role_docs
+seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_retired_workflow; test_retired_agents; test_stale_agent_references; test_retired_orchestrator_link; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_dependency; test_role_docs
 echo 'OK: consumer setup tests'

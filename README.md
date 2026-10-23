@@ -8,7 +8,7 @@ Developer → Manager e skills para projetos Swift.
 ```text
 AI/
 ├── AGENTS.md
-├── .ai/                         # orquestrador, referências e templates compartilhados
+├── .ai/                         # referências e templates compartilhados
 ├── .agents/skills/              # sete skills completas
 ├── .swiftlint.yml               # baseline SwiftLint
 ├── .swiftformat                 # SwiftFormat: formatador único
@@ -43,7 +43,6 @@ MeuProjeto/
 │   ├── shared/                  # submodule desta base
 │   ├── PROJECT_BRIEF.md
 │   ├── PROJECT_GUIDE.md
-│   ├── CODEX_ORCHESTRATOR.md -> shared/.ai/CODEX_ORCHESTRATOR.md
 │   ├── SWIFT_REFERENCE.md -> shared/.ai/SWIFT_REFERENCE.md
 │   └── managed-files.sha256
 ├── .agents/skills/              # cópias locais das skills compartilhadas
@@ -85,6 +84,11 @@ aviso, a que tiver edições locais. Registre as remoções no Git do consumidor
 Como `.ai/PROJECT_GUIDE.md` e `.ai/PROJECT_BRIEF.md` nunca são reescritos, o
 update apenas avisa, com as linhas, quando eles ainda citam `sol`, `luna` ou os
 TOML; `AGENTS.md` declara essas referências obsoletas.
+O orquestrador `.ai/CODEX_ORCHESTRATOR.md` também deixou de existir: o
+contrato dos subagentes faz parte do `AGENTS.md`. O update remove o link
+`.ai/CODEX_ORCHESTRATOR.md -> shared/.ai/CODEX_ORCHESTRATOR.md` criado por
+versões anteriores, preserva um arquivo local com esse nome e avisa, com as
+linhas, quando os documentos do projeto ainda citam o arquivo.
 
 Se o consumidor já tinha `.swiftlint.yml`, `.swiftformat` ou scripts de lint
 próprios fora do manifesto, o update para com conflito. Para adotar a
@@ -116,14 +120,14 @@ deve importar `@AGENTS.md`. Nenhum comando instala agentes, locais ou globais
 
 ## Subagentes
 
-Toda alteração de comportamento segue o ciclo obrigatório de
-`.ai/CODEX_ORCHESTRATOR.md`: um subagente no papel Manager planeja em modo
+Toda alteração de comportamento segue o ciclo obrigatório descrito em
+`AGENTS.md`: um subagente no papel Manager planeja em modo
 somente leitura, um subagente no papel Developer implementa e valida, e o
 Manager revisa ao final até `APPROVED`. A base não fixa agentes, nomes nem
 modelos: o agente principal cria os subagentes com o mecanismo nativo da
 ferramenta (Codex, Claude Code ou outra), escolhe tipo, modelo e esforço
 conforme a tarefa e pode criar subagentes auxiliares quando precisar. As
-instruções de cada papel ficam no próprio orquestrador.
+instruções de cada papel ficam na seção de orquestração do `AGENTS.md`.
 
 Referências: [subagentes do Codex](https://learn.chatgpt.com/docs/agent-configuration/subagents),
 [skills](https://learn.chatgpt.com/docs/build-skills) e

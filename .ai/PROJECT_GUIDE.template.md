@@ -26,9 +26,8 @@ escopo explícito.
 
 ## Coordenação dos subagentes
 
-Use os papéis definidos no `AGENTS.md` e detalhados no
-`.ai/CODEX_ORCHESTRATOR.md`, executados por subagentes que o agente principal
-cria com a ferramenta em uso:
+Use os papéis definidos e detalhados no `AGENTS.md`, executados por subagentes
+que o agente principal cria com a ferramenta em uso:
 
 - Planejamento: subagente no papel Manager, somente leitura.
 - Implementação e correções: subagente no papel Developer.
