@@ -144,13 +144,57 @@ test_lint_gate_prefers_caller_path() {
   version="$(sed -n 's/^readonly SWIFTFORMAT_VERSION="\(.*\)"$/\1/p' "$ROOT/scripts/lint-swift.sh")"
   consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail caller-path-bootstrap; }
   mkdir -p "$p/Sources/Core" "$stub"; printf 'struct Probe {}\n' > "$p/Sources/Core/Core.swift"
-  printf '#!/usr/bin/env bash\ntouch %q\n[[ "${1:-}" == --version ]] && echo %q\nexit 0\n' "$marker" "$version" > "$stub/swiftformat"
+  printf '#!/usr/bin/env bash\n[[ "${1:-}" == --version ]] && { echo %q; exit 0; }\ntouch %q\n' "$version" "$marker" > "$stub/swiftformat"
   chmod +x "$stub/swiftformat"
-  (cd "$p" && PATH="$stub:$PATH" bash scripts/lint-swift.sh --format-only) > "$TMP/caller-path.out" 2>&1 || {
+  (cd "$p" && PATH="$stub:$PATH" SWIFT_QUALITY_TOOLS_AUTO_INSTALL=0 bash scripts/lint-swift.sh --format-only) > "$TMP/caller-path.out" 2>&1 || {
     cat "$TMP/caller-path.out" >&2
     fail lint-gate-caller-path-run
   }
   [[ -e "$marker" ]] || fail lint-gate-prefers-caller-path
+}
+# A missing pinned tool is downloaded into the per-user cache, checked against the pinned
+# SHA-256 and reused; the consumer's gate is repinned to a local stub so nothing hits the network.
+test_lint_gate_auto_installs() {
+  local p="$TMP/auto-install consumer" stub_dir="$TMP/auto-install-stub" marker="$TMP/auto-install-used"
+  local cache="$TMP/auto-install cache" zip="$TMP/auto-install-stub/swiftformat.zip" sha
+  consumer "$p"; run_bootstrap "$p" || { cat "$TMP/out"; fail auto-install-bootstrap; }
+  mkdir -p "$p/Sources/Core" "$stub_dir"; printf 'struct Probe {}\n' > "$p/Sources/Core/Core.swift"
+  printf '#!/usr/bin/env bash\n[[ "${1:-}" == --version ]] && { echo 9.9.9; exit 0; }\ntouch %q\n' "$marker" > "$stub_dir/swiftformat"
+  chmod +x "$stub_dir/swiftformat"
+  (cd "$stub_dir" && zip -q swiftformat.zip swiftformat)
+  sha="$(shasum -a 256 "$zip" | awk '{print $1}')"
+  repin() {
+    perl -0pi -e "s|^readonly SWIFTFORMAT_VERSION=.*|readonly SWIFTFORMAT_VERSION=\"9.9.9\"|m; s|^readonly SWIFTFORMAT_URL=.*|readonly SWIFTFORMAT_URL=\"file://$1\"|m; s|^readonly SWIFTFORMAT_SHA256=.*|readonly SWIFTFORMAT_SHA256=\"$2\"|m" "$p/scripts/lint-swift.sh"
+  }
+  repin "$zip" "$sha"
+  (cd "$p" && SWIFT_QUALITY_TOOLS_CACHE="$cache" bash scripts/lint-swift.sh --format-only) > "$TMP/auto-install.out" 2>&1 || {
+    cat "$TMP/auto-install.out" >&2
+    fail lint-gate-auto-install-run
+  }
+  [[ -e "$marker" && -x "$cache/swiftformat-9.9.9/swiftformat" ]] || fail lint-gate-auto-install-cache
+  rm -f "$marker" "$zip"
+  (cd "$p" && SWIFT_QUALITY_TOOLS_CACHE="$cache" bash scripts/lint-swift.sh --format-only) > "$TMP/auto-install-reuse.out" 2>&1 || {
+    cat "$TMP/auto-install-reuse.out" >&2
+    fail lint-gate-auto-install-reuse
+  }
+  [[ -e "$marker" ]] || fail lint-gate-auto-install-reuse-used
+  if grep -Fq Installing "$TMP/auto-install-reuse.out"; then fail lint-gate-auto-install-redownload; fi
+
+  (cd "$stub_dir" && zip -q swiftformat.zip swiftformat)
+  repin "$zip" 0000000000000000000000000000000000000000000000000000000000000000
+  if (cd "$p" && SWIFT_QUALITY_TOOLS_CACHE="$TMP/auto-install bad cache" bash scripts/lint-swift.sh --format-only) > "$TMP/auto-install-bad.out" 2>&1; then
+    fail lint-gate-auto-install-checksum
+  fi
+  grep -Fq 'Checksum mismatch' "$TMP/auto-install-bad.out" || fail lint-gate-auto-install-checksum-diagnostic
+  [[ ! -e "$TMP/auto-install bad cache/swiftformat-9.9.9/swiftformat" ]] || fail lint-gate-auto-install-checksum-installed
+  [[ -z "$(find "$TMP/auto-install bad cache" -name '.swiftformat-*')" ]] || fail lint-gate-auto-install-stage-left
+
+  repin "$zip" "$(shasum -a 256 "$zip" | awk '{print $1}')"
+  if (cd "$p" && SWIFT_QUALITY_TOOLS_AUTO_INSTALL=0 SWIFT_QUALITY_TOOLS_CACHE="$TMP/auto-install off cache" bash scripts/lint-swift.sh --format-only) > "$TMP/auto-install-off.out" 2>&1; then
+    fail lint-gate-auto-install-opt-out
+  fi
+  grep -Fq 'SwiftFormat 9.9.9 is required' "$TMP/auto-install-off.out" || fail lint-gate-auto-install-opt-out-diagnostic
+  [[ ! -e "$TMP/auto-install off cache" ]] || fail lint-gate-auto-install-opt-out-cache
 }
 # Simulates a consumer set up by a base that still distributed the file $2 with content $3.
 install_legacy_file() {
@@ -474,5 +518,5 @@ test_modified_assets_and_special_destinations() {
   consumer "$r"; mkdir -p "$r/.agents/skills/helper"; mkfifo "$r/$HELPER"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
 }
 test_update_rollback() { local p="$TMP/update-rollback" before="$TMP/update-rollback-before"; consumer "$p"; run_bootstrap "$p" || fail update-rollback-bootstrap; printf remote-change > "$SEED/.agents/skills/example/update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m update-rollback >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; if run_update_fail "$p" after-submodule; then fail update-rollback; fi; snapshot "$p" "$TMP/update-rollback-after"; if ! cmp -s "$before" "$TMP/update-rollback-after"; then diff -u "$before" "$TMP/update-rollback-after" >&2 || true; fail update-rollback-state; fi; }
-seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_retired_workflow; test_retired_agents; test_stale_agent_references; test_retired_orchestrator_link; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_dependency; test_role_docs
+seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_lint_gate_auto_installs; test_retired_workflow; test_retired_agents; test_stale_agent_references; test_retired_orchestrator_link; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_dependency; test_role_docs
 echo 'OK: consumer setup tests'

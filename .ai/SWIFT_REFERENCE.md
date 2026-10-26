@@ -416,20 +416,28 @@ como `<arquivo>.local-backup` e substituídos pelos compartilhados. Revise e
 remova os backups depois. Ao final, os dois comandos imprimem os próximos
 passos de adoção (`scripts/consumer-next-steps.txt`).
 
-A baseline é SwiftLint 0.63.2 e SwiftFormat 0.63.0. As versões ficam fixadas
-somente em `scripts/lint-swift.sh`. Instale com Homebrew ou baixe exatamente
-essas versões para `.build/quality-tools/bin` (usado em CI e no Xcode Cloud):
+A baseline é SwiftLint 0.63.2 e SwiftFormat 0.63.0. As versões, as URLs dos
+zips e seus SHA-256 ficam fixados somente em `scripts/lint-swift.sh`; atualize
+os três juntos.
+
+O gate usa o primeiro binário que informa exatamente a versão fixada,
+procurando no `PATH` de quem o chama e depois em `/opt/homebrew/bin` e
+`/usr/local/bin`, porque fases de build do Xcode e o Xcode Cloud não herdam o
+`PATH` do terminal. Uma versão diferente (por exemplo, um Homebrew mais novo)
+é ignorada. Sem nenhuma, o gate baixa a versão fixada para o cache por usuário
+`~/Library/Caches/swift-quality-tools/<ferramenta>-<versão>/`, confere o
+SHA-256 antes de executar qualquer coisa e reaproveita esse download em todos
+os clones, worktrees e apps. Um clone novo não precisa de nenhum passo manual
+antes do primeiro build.
 
 ```sh
-brew install swiftlint swiftformat
-scripts/install-swift-tools.sh
+scripts/install-swift-tools.sh                 # instala antes (CI, offline)
+scripts/install-swift-tools.sh --print-paths   # imprime as pastas para o PATH do CI
 ```
 
-O gate procura as ferramentas primeiro em `.build/quality-tools/bin`, depois no
-`PATH` de quem o chama e, por último, em `/opt/homebrew/bin` e
-`/usr/local/bin`, porque fases de build do Xcode e o Xcode Cloud não herdam o
-`PATH` do terminal. Assim, binários fixados que o CI coloca no `PATH` têm
-prioridade sobre o Homebrew do runner.
+`SWIFT_QUALITY_TOOLS_CACHE` troca a pasta do cache e
+`SWIFT_QUALITY_TOOLS_AUTO_INSTALL=0` desliga o download automático: sem a
+versão fixada, o gate falha com a instrução de instalação.
 
 O gate distribuído é `scripts/lint-swift.sh`. Ele coleta as raízes `Sources/`
 e `Tests/` do projeto e dos apps, os diretórios `Sources/` e `Tests/` de cada
@@ -456,7 +464,8 @@ Os nomes são rascunhos; revise-os antes do commit.
 
 Integração com Xcode: rode `--format-only` numa fase de build de um target
 com `ENABLE_USER_SCRIPT_SANDBOXING = NO` (o sandbox bloqueia a leitura das
-pastas) e mantenha o SwiftLint como build tool plugin. No Xcode Cloud, chame
+pastas e o download para o cache) e mantenha o SwiftLint como build tool plugin.
+No primeiro build sem a ferramenta, a fase precisa de rede para baixá-la. No Xcode Cloud, chame
 `scripts/install-swift-tools.sh` e `scripts/lint-swift.sh` em
 `ci_scripts/ci_post_clone.sh`. Testes que leem o código-fonte como texto podem
 precisar de ajuste ao layout canônico.
