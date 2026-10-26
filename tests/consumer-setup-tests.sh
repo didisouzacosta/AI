@@ -196,6 +196,33 @@ test_lint_gate_auto_installs() {
   grep -Fq 'SwiftFormat 9.9.9 is required' "$TMP/auto-install-off.out" || fail lint-gate-auto-install-opt-out-diagnostic
   [[ ! -e "$TMP/auto-install off cache" ]] || fail lint-gate-auto-install-opt-out-cache
 }
+# In a linked worktree the index and the submodule repository live in .git/worktrees/<name>
+# while the config is shared; update and rollback must use each one from its own place.
+test_linked_worktree() {
+  local main="$TMP/worktree-main" wt="$TMP/worktree linked" before="$TMP/worktree-before" main_status
+  consumer "$main"; run_bootstrap "$main" || { cat "$TMP/out"; fail worktree-bootstrap; }
+  git -C "$main" add -A; git -C "$main" commit -qm bootstrap
+  git -C "$main" worktree add -q -b linked "$wt"
+  (cd "$wt" && GIT_ALLOW_PROTOCOL=file git -c protocol.file.allow=always submodule update -q --init -- .ai/shared) \
+    || fail worktree-submodule-init
+  printf worktree-change > "$SEED/.agents/skills/example/worktree-marker"
+  git -C "$SEED" add -A; git -C "$SEED" commit -qm worktree-update; git -C "$SEED" push -q
+  main_status="$(git -C "$main" status --porcelain)"
+
+  snapshot "$wt" "$before"
+  if run_update_fail "$wt" after-submodule; then fail worktree-update-rollback; fi
+  grep -Fq 'No such file' "$TMP/out" && { cat "$TMP/out" >&2; fail worktree-git-paths; }
+  snapshot "$wt" "$TMP/worktree-after-rollback"
+  cmp -s "$before" "$TMP/worktree-after-rollback" || {
+    diff -u "$before" "$TMP/worktree-after-rollback" >&2 || true
+    fail worktree-update-rollback-state
+  }
+
+  run_update "$wt" || { cat "$TMP/out"; fail worktree-update; }
+  [[ "$(git -C "$wt/.ai/shared" rev-parse HEAD)" == "$(git -C "$SEED" rev-parse HEAD)" ]] || fail worktree-update-submodule
+  [[ -f "$wt/.agents/skills/example/worktree-marker" ]] || fail worktree-update-files
+  [[ "$(git -C "$main" status --porcelain)" == "$main_status" ]] || fail worktree-update-touched-main
+}
 # Simulates a consumer set up by a base that still distributed the file $2 with content $3.
 install_legacy_file() {
   local p="$1" rel="$2" manifest="$1/.ai/managed-files.sha256" hash
@@ -518,5 +545,5 @@ test_modified_assets_and_special_destinations() {
   consumer "$r"; mkdir -p "$r/.agents/skills/helper"; mkfifo "$r/$HELPER"; if run_bootstrap "$r"; then fail fifo-destination; fi; [[ ! -e "$r/.ai/shared" ]] || fail fifo-mutation
 }
 test_update_rollback() { local p="$TMP/update-rollback" before="$TMP/update-rollback-before"; consumer "$p"; run_bootstrap "$p" || fail update-rollback-bootstrap; printf remote-change > "$SEED/.agents/skills/example/update-marker"; git -C "$SEED" add -A; git -C "$SEED" commit -m update-rollback >/dev/null; git -C "$SEED" push >/dev/null; snapshot "$p" "$before"; if run_update_fail "$p" after-submodule; then fail update-rollback; fi; snapshot "$p" "$TMP/update-rollback-after"; if ! cmp -s "$before" "$TMP/update-rollback-after"; then diff -u "$before" "$TMP/update-rollback-after" >&2 || true; fail update-rollback-state; fi; }
-seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_lint_gate_auto_installs; test_retired_workflow; test_retired_agents; test_stale_agent_references; test_retired_orchestrator_link; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_dependency; test_role_docs
+seed; test_lint_tooling_distribution; test_lint_gate_prefers_caller_path; test_lint_gate_auto_installs; test_retired_workflow; test_retired_agents; test_stale_agent_references; test_retired_orchestrator_link; test_lint_config_adoption; test_adoption_rollback; test_setup_runs_from_main; test_self_update_base; test_claude_skills; test_layout_and_idempotence; test_backup_and_preflight; test_documents_and_conflicts; test_unsafe_paths; test_manifest_traversal_and_backup_idempotence; test_intermediate_symlink; test_rollback; test_modified_assets_and_special_destinations; test_update_rollback; test_linked_worktree; test_new_collision_and_rollback; test_update_safety; test_remote_advance_after_candidate; test_edit_during_candidate_pause; test_edit_after_backup_pause; test_new_collision_after_backup_pause; test_edit_after_first_copy_pause; test_bootstrap_edit_after_backup_pause; test_concurrent_types_after_backup_pause; test_edit_already_copied_after_first_copy; test_project_documents_concurrent_rollback; test_submodule_preflight_and_concurrent_edits; test_old_paths_and_missing_dependency; test_role_docs
 echo 'OK: consumer setup tests'
