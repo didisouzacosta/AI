@@ -15,7 +15,7 @@ AI/
 ├── scripts/lint-swift.sh        # gate estrito local/CI (--fix formata)
 ├── scripts/fix-swift-spacing.pl # corrige o espaçamento entre blocos
 ├── scripts/add-type-marks.py    # rascunha os MARKs obrigatórios
-├── scripts/install-swift-tools.sh # baixa SwiftLint/SwiftFormat nas versões fixas
+├── scripts/install-swift-tools.sh # baixa SwiftLint/SwiftFormat fixos para o cache por usuário
 ├── scripts/consumer-next-steps.txt # passos impressos por bootstrap/update
 └── .github/workflows/ai-base-checks.yml
 ```

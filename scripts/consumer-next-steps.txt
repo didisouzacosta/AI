@@ -6,7 +6,8 @@ Registre no Git:
   base não distribui mais: git add -A .codex
 
 Adoção do padrão Swift (SWIFT_REFERENCE.md, "Organização e estilo"):
-  1. ferramentas: brew install swiftlint swiftformat, ou scripts/install-swift-tools.sh (versões fixas)
+  1. ferramentas: scripts/lint-swift.sh baixa as versões fixas para ~/Library/Caches/swift-quality-tools
+     na primeira execução; para instalar antes (ou offline), rode scripts/install-swift-tools.sh
   2. formate e corrija o espaçamento: scripts/lint-swift.sh --fix
   3. rascunhe os MARKs ausentes e revise os nomes: scripts/lint-swift.sh --add-marks
   4. verifique com scripts/lint-swift.sh e depois rode build e testes; testes que leem o
