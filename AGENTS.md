@@ -48,6 +48,15 @@ tarefa exige registrar a razão. O usuário ou o `.ai/PROJECT_GUIDE.md` do
 projeto consumidor pode fixar um nível mínimo para uma tarefa ou para áreas do
 projeto; esse mínimo prevalece sobre a classificação do principal.
 
+Plano aprovado pelo dono: nos níveis 1 e 2, quando o dono já aprovou o plano da
+tarefa (por exemplo, ao sair do modo de planejamento), esse plano substitui o
+plano do Manager e o plano curto do Developer. O agente principal registra o
+estado inicial e o nível, implementa direto, com TDD e as validações exigidas,
+sem criar o Developer, e ao final cria um subagente Manager para revisar a
+implementação contra o pedido, o plano aprovado e o diff. É uma exceção
+declarada, não uma simulação dos papéis; correções e re-revisões seguem o
+[ciclo](#ciclo-e-aprovação), com o principal no lugar do Developer.
+
 ### Papéis e criação dos subagentes
 
 Subagentes são agentes nativos da ferramenta em uso (por exemplo, Codex ou
@@ -298,6 +307,11 @@ No nível 2:
 4. O principal cria uma nova instância do Manager, distinta da que planejou,
    para a revisão e fornece o pedido, o plano, as mudanças atribuíveis à tarefa
    e as evidências.
+
+Com um plano aprovado pelo dono, nos dois níveis o principal implementa direto,
+sem o planejamento do Manager e sem o Developer, e entrega o mesmo relatório
+(arquivos, critérios, `SKILLS_STATUS`, comandos, resultados e pendências) ao
+Manager revisor, que usa o plano aprovado como plano da tarefa.
 
 Nos dois níveis, `CHANGES_REQUESTED` volta ao Developer com todos os
 apontamentos `BLOCKING` e os NITs que o principal decidir incluir. Quando a
