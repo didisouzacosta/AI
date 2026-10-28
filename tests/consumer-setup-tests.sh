@@ -498,7 +498,7 @@ test_submodule_preflight_and_concurrent_edits() {
   consumer "$race"; run_bootstrap "$race" || fail shared-race-bootstrap; mkdir "$gate"; (cd "$race" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_SUBMODULE="$gate" AI_TEST_FAIL_AT=after-submodule bash "$ROOT/scripts/update-consumer.sh") >"$TMP/shared-race.out" 2>&1 & pid=$!; while [[ ! -f "$gate/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate/ready" ]] || fail shared-race-ready; printf dirty-concurrent > "$race/.ai/shared/AGENTS.md"; : > "$gate/continue"; if wait "$pid"; then fail shared-race-update; fi; [[ "$(<"$race/.ai/shared/AGENTS.md")" == dirty-concurrent ]] || fail shared-race-overwrite; grep -Fq 'rollback preservou alterações concorrentes no submodule' "$TMP/shared-race.out" || fail shared-race-report
   consumer "$created"; mkdir "$gate2"; attempts=0; (cd "$created" && GIT_ALLOW_PROTOCOL=file AI_BASE_REMOTE="$REMOTE" AI_TEST_PAUSE_AFTER_SUBMODULE="$gate2" AI_TEST_FAIL_AT=after-submodule bash "$ROOT/scripts/bootstrap-consumer.sh") >"$TMP/shared-created-race.out" 2>&1 & pid=$!; while [[ ! -f "$gate2/ready" && "$attempts" -lt 100 ]]; do sleep 0.05; attempts=$((attempts + 1)); done; [[ -f "$gate2/ready" ]] || fail shared-created-race-ready; printf dirty-created > "$created/.ai/shared/AGENTS.md"; : > "$gate2/continue"; if wait "$pid"; then fail shared-created-race-update; fi; [[ "$(<"$created/.ai/shared/AGENTS.md")" == dirty-created && -d "$created/.git/modules/.ai/shared" ]] || fail shared-created-race-overwrite; grep -Fq 'rollback preservou alterações concorrentes no submodule criado' "$TMP/shared-created-race.out" || fail shared-created-race-report
 }
-# The base keeps the Manager -> Developer -> Manager cycle in AGENTS.md without fixed agents, names or models.
+# The base keeps the risk-tiered Manager/Developer orchestration in AGENTS.md without fixed agents, names or models.
 test_role_docs() {
   local doc
   [[ ! -e "$ROOT/.codex" ]] || fail fixed-agents-distributed
@@ -506,6 +506,7 @@ test_role_docs() {
   for doc in AGENTS.md .ai/PROJECT_GUIDE.template.md README.md; do
     grep -Fq 'Manager' "$ROOT/$doc" && grep -Fq 'Developer' "$ROOT/$doc" || fail "roles-$doc"
   done
+  grep -Fqx '### Níveis de execução' "$ROOT/AGENTS.md" || fail tier-instructions
   grep -Fqx '### Instruções do papel Manager' "$ROOT/AGENTS.md" || fail manager-instructions
   grep -Fqx '### Instruções do papel Developer' "$ROOT/AGENTS.md" || fail developer-instructions
   grep -Fqx '### Ciclo e aprovação' "$ROOT/AGENTS.md" || fail cycle-instructions

@@ -1,7 +1,7 @@
 # AI — base compartilhada para projetos Apple
 
-Esta base fornece regras de engenharia, o ciclo de subagentes Manager →
-Developer → Manager e skills para projetos Swift.
+Esta base fornece regras de engenharia, a orquestração de subagentes Manager e
+Developer por nível de risco e skills para projetos Swift.
 
 ## Estrutura
 
@@ -120,10 +120,14 @@ deve importar `@AGENTS.md`. Nenhum comando instala agentes, locais ou globais
 
 ## Subagentes
 
-Toda alteração de comportamento segue o ciclo obrigatório descrito em
-`AGENTS.md`: um subagente no papel Manager planeja em modo
-somente leitura, um subagente no papel Developer implementa e valida, e o
-Manager revisa ao final até `APPROVED`. A base não fixa agentes, nomes nem
+Toda alteração segue os níveis de execução descritos em `AGENTS.md`. O agente
+principal classifica a tarefa: mudanças sem efeito no comportamento (nível 0)
+ele faz sozinho; alterações localizadas (nível 1) vão para um subagente no
+papel Developer e passam pela revisão de um subagente no papel Manager; tarefas
+de maior risco (nível 2) seguem o ciclo completo, em que o Manager planeja em
+modo somente leitura, o Developer implementa e valida e o Manager revisa até
+`APPROVED`. Só apontamentos `BLOCKING` impedem a aprovação, e as re-revisões
+conferem apenas as correções. A base não fixa agentes, nomes nem
 modelos: o agente principal cria os subagentes com o mecanismo nativo da
 ferramenta (Codex, Claude Code ou outra), escolhe tipo, modelo e esforço
 conforme a tarefa e pode criar subagentes auxiliares quando precisar. As

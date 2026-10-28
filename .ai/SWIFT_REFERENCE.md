@@ -77,8 +77,10 @@ genéricas de uma skill. Em particular:
 
 ### Registro obrigatório no plano e no relatório
 
-O Manager deve incluir este bloco no plano, e o Developer deve atualizá-lo no
-relatório final:
+No nível 2, o Manager inclui este bloco no plano e o Developer o atualiza no
+relatório final; no nível 1, o Developer o registra no plano curto do relatório
+e o atualiza ao final. Use uma linha por skill. No nível 0, o bloco é
+dispensado. Os níveis estão definidos no `AGENTS.md`.
 
 ```text
 SKILLS_STATUS:

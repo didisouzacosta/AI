@@ -26,17 +26,20 @@ escopo explícito.
 
 ## Coordenação dos subagentes
 
-Use os papéis definidos e detalhados no `AGENTS.md`, executados por subagentes
-que o agente principal cria com a ferramenta em uso:
+Use os níveis de execução e os papéis definidos e detalhados no `AGENTS.md`,
+executados por subagentes que o agente principal cria com a ferramenta em uso:
 
-- Planejamento: subagente no papel Manager, somente leitura.
-- Implementação e correções: subagente no papel Developer.
-- Revisão: subagente no papel Manager, somente leitura.
+- Nível 0 (direto): o agente principal executa sem subagentes.
+- Nível 1 (padrão): subagente no papel Developer com plano curto → revisão por
+  subagente no papel Manager, somente leitura.
+- Nível 2 (completo): Manager planeja → Developer implementa e valida →
+  Manager revisa.
 
-O ciclo é Manager planeja → Developer implementa e valida → Manager revisa →
-Developer corrige → Manager revisa novamente até resolver todos os apontamentos.
-A base não fixa agentes, nomes nem modelos; registre aqui somente preferências
-ou exceções do projeto.
+Correções voltam ao Developer e passam por re-revisão até não restarem
+apontamentos `BLOCKING`. A base não fixa agentes, nomes nem modelos; registre
+aqui somente preferências ou exceções do projeto.
+
+- Nível mínimo por área ou tipo de tarefa:
 
 ## Arquitetura
 
